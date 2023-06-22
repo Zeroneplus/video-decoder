@@ -1,17 +1,14 @@
 
 #pragma once
 
-#include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
-
 
 #include <string>
-#include <memory>
+#include <utility>
 
 #include "InputStream.h"
 
-class FileStream: public InputStream {
+class FileStream : public InputStream {
 public:
     FileStream(std::string filename);
     ~FileStream();
@@ -19,11 +16,11 @@ public:
 
 private:
     int read_from_stream();
+    std::pair<int, int> find_start_code(int start);
     std::string file_name;
-    FILE *file_pointer;
-    int file_pos;
+    FILE* file_pointer;
     int buffer_size;
     int current_data_size;
-    char *buffer_addr;
-    static constexpr read_size = 1024;
+    char* buffer_addr;
+    static constexpr int read_size = 1024;
 };
