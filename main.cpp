@@ -15,7 +15,10 @@ int main(int argn, char** argv)
     const char* file = "/home/cdzhang/open_source_proj/video-decoder/test/trailer.h264";
     std::shared_ptr<InputStream> st = std::make_shared<FileStream>(file);
     std::shared_ptr<NalUnit> nal;
-    while (nal = st->get_nal_unit()) {
+    std::shared_ptr<NalUnit::RbspData> rbsp;
+    while ((nal = st->get_nal_unit())) {
         std::cout << "the size of nal is " << nal->size() << std::endl;
+        rbsp = nal->parse();
+        std::cout << "the size of rbsp is " << rbsp->size() << std::endl;
     }
 }
