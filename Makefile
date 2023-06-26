@@ -1,18 +1,20 @@
 
-CC = g++
+CC = gcc
+CXX = g++
 
-CSRC = FileStream.cpp main.cpp NalUnit.cpp
-COBJ = $(CSRC:.cpp=.o)
+CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
+       VideoDecoder.cpp SPS.cpp PPS.cpp
+CXXOBJ = $(CXXSRC:.cpp=.o)
 CFLAGS = -g -O0
 
-$(COBJ) : %.o:%.cpp
-	@$(CC) $(CFLAGS) -o $@ -c $^
+$(CXXOBJ) : %.o:%.cpp
+	@$(CXX) $(CFLAGS) -o $@ -c $<
 
-main : $(COBJ)
-	@$(CC) $(CFLAGS) -o $@ $^
+main : $(CXXOBJ)
+	@$(CXX) $(CFLAGS) -o $@ $^
 
 ffmpeg_test: ffmpeg_test.c
-	gcc $(CFLAGS) -lavformat -lavutil -lavcodec -o $@ $^
+	@$(CC) $(CFLAGS) -lavformat -lavutil -lavcodec -o $@ $^
 
 all: main ffmpeg_test
 
