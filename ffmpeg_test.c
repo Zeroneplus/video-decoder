@@ -6,7 +6,7 @@
 
 int main()
 {
-    const char* filename = "/home/cdzhang/open_source_proj/video-decoder/test/trailer.h264";
+    const char* filename = "./test/trailer.h264";
     int ret, idx;
     const AVInputFormat* iformat = av_find_input_format("h264");
     AVFormatContext* format_ctx = avformat_alloc_context();

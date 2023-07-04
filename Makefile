@@ -4,7 +4,7 @@ CXX = g++
 
 CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
        VideoDecoder.cpp SPS.cpp PPS.cpp
-CXXOBJ = $(CXXSRC:.cpp=.o)
+CXXOBJ = $(CXXSRC:%.cpp=%.o)
 CFLAGS = -g -O0
 
 $(CXXOBJ) : %.o:%.cpp
@@ -19,9 +19,10 @@ ffmpeg_test: ffmpeg_test.c
 all: main ffmpeg_test
 
 clean:
-	@-rm main $(COBJ) ffmpeg_test
+	@-rm -f main $(COBJ) $(CXXOBJ)
+	@-rm -f ffmpeg_test
 
 format:
 	clang-format -i --style=Webkit *.cpp *.h *.c
 
-.PHONY:clean all format
+.PHONY:all clean format

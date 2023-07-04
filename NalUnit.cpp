@@ -1,8 +1,8 @@
 
-#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 
+#include <iostream>
 #include <utility>
 
 #include "NalUnit.h"
@@ -327,6 +327,10 @@ int32_t NalUnit::RbspData::read_se()
 void NalUnit::RbspData::parse_nal_header()
 {
     int forbidden_zero_bit = read_u1();
+
+    if (forbidden_zero_bit)
+        std::cout << "forbidden_zero_bit is not equal to 0." << std::endl;
+
     nal_ref_idc = read_u(2);
     nal_unit_type = int_to_nal_unit_type(read_u(5));
 
