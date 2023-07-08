@@ -19,4 +19,12 @@ private:
 
     uint8_t colour_plane_id_ = 0;
     uint32_t frame_num_;
+    uint8_t field_pic_flag_ = 0;
+    uint8_t bottom_field_flag_ = 0;
+    int32_t idr_pic_id_ = 0;
+    uint32_t pic_order_cnt_lsb_ = 0;
+    int32_t delta_pic_order_cnt_bottom_ = 0;
+    int32_t delta_pic_order_cnt_0_ = 0;
+    int32_t delta_pic_order_cnt_1_ = 0;
+    uint32_t redundant_pic_cnt_ = 0;
 };
