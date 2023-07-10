@@ -75,6 +75,14 @@ public:
         {
             return nal_unit_type;
         }
+        bool idr_pic()
+        {
+            return idr_pic_flag;
+        }
+        int nal_ref_idc_v()
+        {
+            return nal_ref_idc;
+        }
 
     private:
         std::vector<uint8_t> buf;

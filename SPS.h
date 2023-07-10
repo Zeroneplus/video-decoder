@@ -11,6 +11,30 @@ public:
 
     void log();
     int sps_id() { return seq_parameter_set_id_; }
+    bool separate_colour_plane_flag()
+    {
+        return separate_colour_plane_flag_;
+    }
+    int frame_num_bits()
+    {
+        return log2_max_frame_num_minus4_ + 4;
+    }
+    bool frame_mbs_only()
+    {
+        return frame_mbs_only_flag_;
+    }
+    int pic_order_cnt_type()
+    {
+        return pic_order_cnt_type_;
+    }
+    int poc_lsb_bits()
+    {
+        return log2_max_pic_order_cnt_lsb_minus4_ + 4;
+    }
+    bool delta_pic_order_always_zero()
+    {
+        return delta_pic_order_always_zero_flag_;
+    }
 
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data;

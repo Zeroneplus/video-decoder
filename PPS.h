@@ -11,6 +11,35 @@ public:
 
     void log();
     int pps_id() { return pic_parameter_set_id_; }
+    int sps_id() { return seq_parameter_set_id_; }
+    bool bottom_field_pic_order_in_frame_present()
+    {
+        return bottom_field_pic_order_in_frame_present_flag_;
+    }
+    bool redundant_pic_cnt_present()
+    {
+        return redundant_pic_cnt_present_flag_;
+    }
+    bool weighted_pred()
+    {
+        return weighted_pred_flag_;
+    }
+    bool weighted_bipred()
+    {
+        return weighted_bipred_idc_;
+    }
+    bool entropy_coding_mode()
+    {
+        return entropy_coding_mode_flag_;
+    }
+    bool deblocking_filter_control_present()
+    {
+        return deblocking_filter_control_present_flag_;
+    }
+    uint32_t num_slice_groups_minus1()
+    {
+        return num_slice_groups_minus1_;
+    }
 
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data;

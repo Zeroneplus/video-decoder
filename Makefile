@@ -3,9 +3,9 @@ CC = gcc
 CXX = g++
 
 CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
-       VideoDecoder.cpp SPS.cpp PPS.cpp Slice.cpp
+         VideoDecoder.cpp SPS.cpp PPS.cpp Slice.cpp
 CXXOBJ = $(CXXSRC:%.cpp=%.o)
-CFLAGS = -g -O0
+CFLAGS = -g -O0 -Werror
 
 $(CXXOBJ) : %.o:%.cpp
 	@$(CXX) $(CFLAGS) -o $@ -c $<
