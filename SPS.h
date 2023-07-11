@@ -11,7 +11,7 @@ public:
 
     void log();
     int sps_id() { return seq_parameter_set_id_; }
-    bool separate_colour_plane_flag()
+    bool separate_colour_plane()
     {
         return separate_colour_plane_flag_;
     }

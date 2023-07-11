@@ -12,6 +12,9 @@ int Pps::parse()
     entropy_coding_mode_flag_ = rbsp_data->read_u1();
     bottom_field_pic_order_in_frame_present_flag_ = rbsp_data->read_u1();
 
+    if (!bottom_field_pic_order_in_frame_present_flag_)
+        std::cout << "warn: bottom_field_pic_order_in_frame_present_flag is false" << std::endl;
+
     num_slice_groups_minus1_ = rbsp_data->read_ue();
 
     if (num_slice_groups_minus1_ > 0) {

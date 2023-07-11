@@ -35,3 +35,11 @@ int VideoDecoder::add_pps(std::shared_ptr<NalUnit::RbspData> rbsp)
     }
     return ret;
 }
+
+int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
+{
+    std::cout << "start parse slice" << std::endl;
+    std::shared_ptr<Slice> slice = std::make_shared<Slice>(std::move(rbsp));
+    int ret = slice->parse_slice_header(this);
+    return ret;
+}

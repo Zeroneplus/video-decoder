@@ -32,9 +32,10 @@ int main(int argn, char** argv)
             break;
         case NalUnitType::PPS:
             vdec.add_pps(std::move(rbsp));
-            goto end;
             break;
         case NalUnitType::IDR:
+            vdec.add_slice(std::move(rbsp));
+            goto end;
             break;
         case NalUnitType::SliceWithoutPartition:
             break;

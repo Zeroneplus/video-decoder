@@ -15,6 +15,8 @@ public:
     int add_sps(std::shared_ptr<NalUnit::RbspData> rbsp);
     int add_pps(std::shared_ptr<NalUnit::RbspData> rbsp);
 
+    int add_slice(std::shared_ptr<NalUnit::RbspData> rbsp);
+
     std::shared_ptr<Pps> get_pps_by_id(uint32_t id)
     {
         auto it = pps_map.find(id);
