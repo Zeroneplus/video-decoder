@@ -30,9 +30,9 @@ public:
         SI_high
     };
 
-    const char* slice_type_str(enum SliceType)
+    const char* slice_type_str(enum SliceType type)
     {
-        switch (SliceType) {
+        switch (type) {
         case SliceType::P:
         case SliceType::P_high:
             return "P Slice";
@@ -59,38 +59,38 @@ private:
     int slice_type_;
     int pic_parameter_set_id_;
 
-    int colour_plane_id_ = 0;
+    int colour_plane_id_ = -1;
     int frame_num_;
 
     int field_pic_flag_ = 0;
     int bottom_field_flag_ = 0;
 
-    int idr_pic_id_ = 0;
+    int idr_pic_id_ = -1;
 
-    int pic_order_cnt_lsb_ = 0;
-    int delta_pic_order_cnt_bottom_ = 0;
-    int delta_pic_order_cnt_0_ = 0;
-    int delta_pic_order_cnt_1_ = 0;
+    int pic_order_cnt_lsb_ = -1;
+    int delta_pic_order_cnt_bottom_ = INT32_MIN;
+    int delta_pic_order_cnt_0_ = INT32_MIN;
+    int delta_pic_order_cnt_1_ = INT32_MIN;
 
-    int redundant_pic_cnt_ = 0;
+    int redundant_pic_cnt_ = -1;
 
     int direct_spatial_mv_pred_flag_ = 0;
 
     int num_ref_idx_active_override_flag_ = 0;
-    int num_ref_idx_l0_active_minus1_ = 0;
-    int num_ref_idx_l1_active_minus1_ = 0;
+    int num_ref_idx_l0_active_minus1_ = INT32_MIN;
+    int num_ref_idx_l1_active_minus1_ = INT32_MIN;
 
-    int cabac_init_idc_ = 0;
+    int cabac_init_idc_ = INT32_MIN;
 
     int slice_qp_delta_;
 
     int sp_for_switch_flag_ = 0;
 
-    int slice_qs_delta_ = 0;
+    int slice_qs_delta_ = INT32_MIN;
 
-    int disable_deblocking_filter_idc_;
-    int slice_alpha_c0_offset_div2_;
-    int slice_beta_offset_div2_;
+    int disable_deblocking_filter_idc_ = INT32_MIN;
+    int slice_alpha_c0_offset_div2_ = INT32_MIN;
+    int slice_beta_offset_div2_ = INT32_MIN;
 
     int ref_pic_list_modification_flag_l0_ = 0;
     int ref_pic_list_modification_flag_l1_ = 0;

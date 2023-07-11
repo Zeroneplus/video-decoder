@@ -176,7 +176,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         }
     }
 
-    if (rbsp_data->nal_type() == 20) {
+    if (rbsp_data->nal_type() == 20 || rbsp_data->nal_type() == 21) {
         std::cout << "ref_pic_list_mvc_modification is unsupported" << std::endl;
         return -1;
     } else {
@@ -216,7 +216,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         slice_qs_delta_ = rbsp_data->read_se();
     }
 
-    if (pps_->bottom_field_pic_order_in_frame_present()) {
+    if (pps_->deblocking_filter_control_present()) {
         disable_deblocking_filter_idc_ = rbsp_data->read_ue();
         if (disable_deblocking_filter_idc_ != 1) {
             slice_alpha_c0_offset_div2_ = rbsp_data->read_se();
@@ -229,4 +229,54 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         return -1;
     }
     return 0;
+}
+
+void Slice::log_header()
+{
+    const char* space = "  ";
+    std::cout << "slice header parse result:" << std::endl;
+    std::cout << space << "first_mb_in_slice " << first_mb_in_slice_ << std::endl;
+    std::cout << space << "slice_type " << slice_type_str(slice_type) << std::endl;
+    std::cout << space << "pic_parameter_set_id " << pic_parameter_set_id_ << std::endl;
+    if (colour_plane_id_ >= 0)
+        std::cout << space << "colour_plane_id " << colour_plane_id_ << std::endl;
+    std::cout << space << "frame_num " << frame_num_ << std::endl;
+    if (field_pic_flag_) {
+        if (bottom_field_flag_)
+            std::cout << space << "this slice is bottom field" << std::endl;
+        else
+            std::cout << space << "this slice is top field" << std::endl;
+    } else
+        std::cout << space << "this slice is frame" << std::endl;
+
+    if (idr_pic_id_ >= 0)
+        std::cout << space << "idr_pic_id " << idr_pic_id_ << std::endl;
+
+    std::cout << space << "pic_order_cnt_lsb " << pic_order_cnt_lsb_ << std::endl;
+    std::cout << space << "delta_pic_order_cnt_bottom " << delta_pic_order_cnt_bottom_ << std::endl;
+    std::cout << space << "delta_pic_order_cnt_0 " << delta_pic_order_cnt_0_ << std::endl;
+    std::cout << space << "delta_pic_order_cnt_1 " << delta_pic_order_cnt_1_ << std::endl;
+
+    if (redundant_pic_cnt_ >= 0)
+        std::cout << space << "redundant_pic_cnt " << redundant_pic_cnt_ << std::endl;
+
+    std::cout << space << "direct_spatial_mv_pred_flag " << direct_spatial_mv_pred_flag_ << std::endl;
+
+    std::cout << space << "num_ref_idx_active_override_flag " << num_ref_idx_active_override_flag_ << std::endl;
+    std::cout << space << "num_ref_idx_l0_active_minus1 " << num_ref_idx_l0_active_minus1_ << std::endl;
+    std::cout << space << "num_ref_idx_l1_active_minus1 " << num_ref_idx_l1_active_minus1_ << std::endl;
+
+    std::cout << space << "ref_pic_list_modification_l0 size " << ref_pic_list_modification_l0_.size() << std::endl;
+    std::cout << space << "ref_pic_list_modification_l1 size " << ref_pic_list_modification_l1_.size() << std::endl;
+
+    if (cabac_init_idc_ >= 0)
+        std::cout << space << "cabac_init_idc " << cabac_init_idc_ << std::endl;
+
+    std::cout << space << "slice_qp_delta " << slice_qp_delta_ << std::endl;
+    std::cout << space << "sp_for_switch_flag " << sp_for_switch_flag_ << std::endl;
+    std::cout << space << "slice_qs_delta " << slice_qs_delta_ << std::endl;
+
+    std::cout << space << "disable_deblocking_filter_idc " << disable_deblocking_filter_idc_ << std::endl;
+    std::cout << space << "slice_alpha_c0_offset_div2 " << slice_alpha_c0_offset_div2_ << std::endl;
+    std::cout << space << "slice_beta_offset_div2 " << slice_beta_offset_div2_ << std::endl;
 }
