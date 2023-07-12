@@ -6,7 +6,6 @@
 
 int VideoDecoder::add_sps(std::shared_ptr<NalUnit::RbspData> rbsp)
 {
-    std::cout << "start parse sps" << std::endl;
     std::shared_ptr<Sps> sps = std::make_shared<Sps>(std::move(rbsp));
     int ret = sps->parse();
     int sps_id = sps->sps_id();
@@ -22,7 +21,6 @@ int VideoDecoder::add_sps(std::shared_ptr<NalUnit::RbspData> rbsp)
 
 int VideoDecoder::add_pps(std::shared_ptr<NalUnit::RbspData> rbsp)
 {
-    std::cout << "start parse pps" << std::endl;
     std::shared_ptr<Pps> pps = std::make_shared<Pps>(std::move(rbsp));
     int ret = pps->parse();
     int pps_id = pps->pps_id();
@@ -38,7 +36,6 @@ int VideoDecoder::add_pps(std::shared_ptr<NalUnit::RbspData> rbsp)
 
 int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
 {
-    std::cout << "start parse slice" << std::endl;
     std::shared_ptr<Slice> slice = std::make_shared<Slice>(std::move(rbsp));
     int ret = slice->parse_slice_header(this);
     slice->log_header();
