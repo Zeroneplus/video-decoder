@@ -2,6 +2,7 @@
 #pragma once
 
 #include "NalUnit.h"
+#include "Vui.h"
 
 class Sps {
 public:
@@ -89,6 +90,7 @@ private:
     int frame_crop_bottom_offset_ = 0;
 
     int vui_parameters_present_flag_;
+    Vui vui_;
 
 public:
     int ChromaArrayType() { return ChromaArrayType_; }

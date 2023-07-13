@@ -56,6 +56,7 @@ int main(int argn, char** argv)
                 spdlog::error("Some error occur when add a sps slice to video decoder");
                 goto end;
             }
+            goto end;
             break;
         case NalUnitType::PPS:
             spdlog::trace("Will add a pps slice to our video decoder");

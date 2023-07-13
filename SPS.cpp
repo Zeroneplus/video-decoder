@@ -207,7 +207,13 @@ int Sps::parse()
     vui_parameters_present_flag_ = rbsp_data_->read_u1();
 
     if (vui_parameters_present_flag_)
-        spdlog::warn("vui parameters present, but currently ignore vui parameters");
+        vui_.parse(rbsp_data_);
+    // spdlog::warn("vui parameters present, but currently ignore vui parameters");
+
+    if (!rbsp_data_->check_trailing_bits()) {
+        spdlog::error("check_trailing_bits failed in read sps");
+        return -1;
+    }
 
     if (!rbsp_data_->eof())
         spdlog::warn("after parse, sps rbsp is not ended, which may be the ignore vui parameters");
