@@ -19,6 +19,8 @@ public:
     int parse_pred_weight_table();
     int parse_dec_ref_pic_marking();
 
+    bool bottom_field_pic_order_in_frame_present();
+
     enum SliceType {
         P = 0,
         B,
@@ -136,4 +138,10 @@ private:
     int parse_single_ref_pic_list_modification(int idx);
 
     enum SliceType slice_type_enum_;
+
+    int luma_log2_weight_denom_ = INT32_MIN;
+    int chroma_log2_weight_denom_ = INT32_MIN;
+
+    int final_num_ref_idx_l0_active_minus1_ = INT32_MIN;
+    int final_num_ref_idx_l1_active_minus1_ = INT32_MIN;
 };

@@ -5,13 +5,15 @@ CXX = g++
 CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
          VideoDecoder.cpp SPS.cpp PPS.cpp Slice.cpp
 CXXOBJ = $(CXXSRC:%.cpp=%.o)
-CFLAGS = -g -O0 -Werror
+DEBUG_FLAG = -g -O0 -Werror
+CFLAGS = $(DEBUG_FLAG)
+CXXFLAGS = $(DEBUG_FLAG) -Ithird_party/spdlog/include
 
 $(CXXOBJ) : %.o:%.cpp
-	@$(CXX) $(CFLAGS) -o $@ -c $<
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 main : $(CXXOBJ)
-	@$(CXX) $(CFLAGS) -o $@ $^
+	@$(CXX) $(CXXFLAGS) -o $@ $^
 
 ffmpeg_test: ffmpeg_test.c
 	@$(CC) $(CFLAGS) -lavformat -lavutil -lavcodec -o $@ $^

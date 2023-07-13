@@ -234,9 +234,9 @@ NalUnit::RbspData::RbspData(std::vector<uint8_t> input_buf)
     , p(buf.data())
     , end(start + buf.size())
     , bits_left(8)
-    , nal_ref_idc(-1)
-    , nal_unit_type(NalUnitType::Unspecified)
-    , idr_pic_flag(false)
+    , nal_ref_idc_(-1)
+    , nal_unit_type_(NalUnitType::Unspecified)
+    , idr_pic_flag_(false)
 {
     if (buf.empty())
         std::cout << "the Rbsp Data is empty" << std::endl;
@@ -331,18 +331,18 @@ void NalUnit::RbspData::parse_nal_header()
     if (forbidden_zero_bit)
         std::cout << "forbidden_zero_bit is not equal to 0." << std::endl;
 
-    nal_ref_idc = read_u(2);
-    nal_unit_type = int_to_nal_unit_type(read_u(5));
+    nal_ref_idc_ = read_u(2);
+    nal_unit_type_ = int_to_nal_unit_type(read_u(5));
 
-    idr_pic_flag = (nal_unit_type == 5) ? true : false;
+    idr_pic_flag_ = (nal_unit_type_ == 5) ? true : false;
 
-    if (nal_unit_type == 14 || nal_unit_type == 20) {
+    if (nal_unit_type_ == 14 || nal_unit_type_ == 20) {
         std::cout << "This nal_unit_type is currently unsupported." << std::endl;
     }
 
     // std::cout << "forbidden_zero_bit " << forbidden_zero_bit << ", "
-    //           << "nal_ref_idc " << nal_ref_idc << ", "
-    //           << "nal_unit_type " << nal_unit_type_to_char(nal_unit_type) << "." << std::endl;
+    //           << "nal_ref_idc " << nal_ref_idc_ << ", "
+    //           << "nal_unit_type " << nal_unit_type_to_char(nal_unit_type_) << "." << std::endl;
 }
 
 std::shared_ptr<NalUnit::RbspData> NalUnit::parse()

@@ -25,6 +25,7 @@ public:
         }
         return nullptr;
     }
+
     std::shared_ptr<Sps> get_sps_by_id(uint32_t id)
     {
         auto it = sps_map.find(id);
@@ -33,9 +34,6 @@ public:
         }
         return nullptr;
     }
-
-    template <typename T>
-    int add_xps(std::shared_ptr<NalUnit::RbspData> rbsp);
 
 private:
     std::map<uint32_t, std::shared_ptr<Sps>> sps_map;

@@ -71,17 +71,17 @@ public:
 
         void parse_nal_header();
 
-        NalUnitType nal_type()
+        NalUnitType nal_unit_type()
         {
-            return nal_unit_type;
+            return nal_unit_type_;
         }
-        bool idr_pic()
+        bool idr_pic_flag()
         {
-            return idr_pic_flag;
+            return idr_pic_flag_;
         }
-        int nal_ref_idc_v()
+        int nal_ref_idc()
         {
-            return nal_ref_idc;
+            return nal_ref_idc_;
         }
 
     private:
@@ -90,9 +90,9 @@ public:
         uint8_t* p;
         uint8_t* end;
         int bits_left;
-        int nal_ref_idc;
-        NalUnitType nal_unit_type;
-        bool idr_pic_flag;
+        int nal_ref_idc_;
+        NalUnitType nal_unit_type_;
+        bool idr_pic_flag_;
     };
 
     NalUnit(int size);

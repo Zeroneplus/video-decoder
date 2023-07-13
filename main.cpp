@@ -3,68 +3,90 @@
 #include <iostream>
 #include <memory>
 
+#include "spdlog/spdlog.h"
+
 #include "FileStream.h"
 #include "VideoDecoder.h"
 
 int main(int argn, char** argv)
 {
+    spdlog::set_level(spdlog::level::trace);
+
     if (argn < 2) {
-        std::cout << "too less args" << std::endl;
+        spdlog::error("Too less args");
+        spdlog::error("Usage: {} filename", argv[0]);
         return -1;
     }
 
     const char* file = argv[1];
     std::shared_ptr<InputStream> st = std::make_shared<FileStream>(file);
+
+    VideoDecoder vdec;
+
+    bool has_meet_IDR;
+
+    int ret = 0;
+
     std::shared_ptr<NalUnit> nal;
     std::shared_ptr<NalUnit::RbspData> rbsp;
-    VideoDecoder vdec;
     enum NalUnitType nal_unit_type;
-    bool has_meet_IDR;
-    int ret = 0;
+
     while ((nal = st->get_nal_unit())) {
-        // std::cout << "the size of nal is " << nal->size() << std::endl;
+        spdlog::trace("++++++++ The size of split nal is {} ++++++++", nal->size());
+
         rbsp = nal->parse();
-        // std::cout << "the size of rbsp is " << rbsp->size() << std::endl;
+        spdlog::trace("The size of rbsp from nal is {}", rbsp->size());
+
         rbsp->parse_nal_header();
-        nal_unit_type = rbsp->nal_type();
+        nal_unit_type = rbsp->nal_unit_type();
+        spdlog::info("The nal type of rbsp is {}", nal_unit_type_to_char(nal_unit_type));
+
         switch (nal_unit_type) {
         case NalUnitType::SEI:
+            spdlog::warn("Currently we will ignore SEI slice");
             break;
         case NalUnitType::SPS:
+            spdlog::info("Will add a sps slice to our video decoder");
             ret = vdec.add_sps(std::move(rbsp));
             if (ret < 0) {
-                std::cout << "vdec.add_sps error" << std::endl;
+                spdlog::error("Some error occur when add a sps slice to video decoder");
                 goto end;
             }
             break;
         case NalUnitType::PPS:
+            spdlog::info("Will add a pps slice to our video decoder");
             ret = vdec.add_pps(std::move(rbsp));
             if (ret < 0) {
-                std::cout << "vdec.add_pps error" << std::endl;
+                spdlog::error("Some error occur when add a pps slice to video decoder");
                 goto end;
             }
             break;
         case NalUnitType::IDR:
+            spdlog::info("Will add an IDR slice to our video decoder");
             ret = vdec.add_slice(std::move(rbsp));
             if (ret < 0) {
-                std::cout << "vdec.add_IDR_slice error" << std::endl;
+                spdlog::error("Some error occur when add a IDR slice to video decoder");
                 goto end;
             }
+
+            // now we will only decode a GOP
             if (!has_meet_IDR)
                 has_meet_IDR = true;
             else
                 goto end;
             break;
         case NalUnitType::SliceWithoutPartition:
+            spdlog::info("Will add a SliceWithoutPartition to our video decoder");
             ret = vdec.add_slice(std::move(rbsp));
             if (ret < 0) {
-                std::cout << "vdec.add_SliceWithoutPartition error" << std::endl;
+                spdlog::error("Some error occur when add a SliceWithoutPartition to video decoder");
                 goto end;
             }
-            goto end; // 
+            goto end; // tmp
             break;
         default:
             /* ignore other nal */
+            spdlog::warn("Ignore an unknown slice");
             break;
         }
     }
