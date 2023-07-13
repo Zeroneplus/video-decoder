@@ -7,10 +7,6 @@ int Hrd::parse(std::shared_ptr<NalUnit::RbspData> rbsp)
     bit_rate_scale = rbsp->read_u(4);
     cpb_size_scale = rbsp->read_u(4);
 
-    bit_rate_value_minus1.resize(0);
-    cpb_size_value_minus1.resize(0);
-    cbr_flag.resize(0);
-
     for (int SchedSelIdx = 0; SchedSelIdx <= cpb_cnt_minus1; SchedSelIdx++) {
         bit_rate_value_minus1.push_back(rbsp->read_ue());
         cpb_size_value_minus1.push_back(rbsp->read_ue());

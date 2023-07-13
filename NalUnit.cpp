@@ -383,19 +383,19 @@ std::shared_ptr<NalUnit::RbspData> NalUnit::parse()
     }
 
     std::vector<uint8_t> tmp(size);
-    int k = -1;
-    int pre = 0;
+    int k = 0;
     for (int i = 0; i < size; i++) {
-        tmp[++k] = *(start + i);
-        if (i - 2 >= pre
-            && *(start + i) == 3
-            && *(start + i - 1) == 0
-            && *(start + i - 2) == 0) {
-            k -= 3;
-            pre = i + 2;
-        }
+        if (i + 2 < size && *(start + i) == 0
+            && *(start + i + 1) == 0
+            && *(start + i + 2) == 3) {
+            tmp[k++] = 0;
+            tmp[k++] = 0;
+            i += 2;
+        } else
+            tmp[k++] = *(start + i);
     }
-    tmp.resize(k + 1);
+
+    tmp.resize(k);
     //    uint8_t* v = tmp.data();
     //    int ss = k + 1;
     //    std::cout << "ss size is " << ss << std::endl;
