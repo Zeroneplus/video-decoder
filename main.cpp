@@ -10,7 +10,7 @@
 
 int main(int argn, char** argv)
 {
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::warn);
 
     if (argn < 2) {
         spdlog::error("Too less args");
@@ -31,22 +31,26 @@ int main(int argn, char** argv)
     std::shared_ptr<NalUnit::RbspData> rbsp;
     enum NalUnitType nal_unit_type;
 
+    int ctrl_num = 4;
+
     while ((nal = st->get_nal_unit())) {
-        spdlog::trace("++++++++ The size of split nal is {} ++++++++", nal->size());
+        spdlog::warn("============= start new nal =============", nal->size());
+
+        spdlog::trace("The size of split nal is {}", nal->size());
 
         rbsp = nal->parse();
         spdlog::trace("The size of rbsp from nal is {}", rbsp->size());
 
         rbsp->parse_nal_header();
         nal_unit_type = rbsp->nal_unit_type();
-        spdlog::info("The nal type of rbsp is {}", nal_unit_type_to_char(nal_unit_type));
+        spdlog::warn("The nal type of rbsp is {}", nal_unit_type_to_char(nal_unit_type));
 
         switch (nal_unit_type) {
         case NalUnitType::SEI:
             spdlog::warn("Currently we will ignore SEI slice");
             break;
         case NalUnitType::SPS:
-            spdlog::info("Will add a sps slice to our video decoder");
+            spdlog::trace("Will add a sps slice to our video decoder");
             ret = vdec.add_sps(std::move(rbsp));
             if (ret < 0) {
                 spdlog::error("Some error occur when add a sps slice to video decoder");
@@ -54,7 +58,7 @@ int main(int argn, char** argv)
             }
             break;
         case NalUnitType::PPS:
-            spdlog::info("Will add a pps slice to our video decoder");
+            spdlog::trace("Will add a pps slice to our video decoder");
             ret = vdec.add_pps(std::move(rbsp));
             if (ret < 0) {
                 spdlog::error("Some error occur when add a pps slice to video decoder");
@@ -62,7 +66,7 @@ int main(int argn, char** argv)
             }
             break;
         case NalUnitType::IDR:
-            spdlog::info("Will add an IDR slice to our video decoder");
+            spdlog::trace("Will add an IDR slice to our video decoder");
             ret = vdec.add_slice(std::move(rbsp));
             if (ret < 0) {
                 spdlog::error("Some error occur when add a IDR slice to video decoder");
@@ -76,13 +80,14 @@ int main(int argn, char** argv)
                 goto end;
             break;
         case NalUnitType::SliceWithoutPartition:
-            spdlog::info("Will add a SliceWithoutPartition to our video decoder");
+            spdlog::trace("Will add a SliceWithoutPartition to our video decoder");
             ret = vdec.add_slice(std::move(rbsp));
             if (ret < 0) {
                 spdlog::error("Some error occur when add a SliceWithoutPartition to video decoder");
                 goto end;
             }
-            goto end; // tmp
+            if (--ctrl_num == 0)
+                goto end; // tmp
             break;
         default:
             /* ignore other nal */

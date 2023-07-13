@@ -84,6 +84,18 @@ public:
             return nal_ref_idc_;
         }
 
+        bool check_trailing_bits()
+        {
+            if (read_u1() == 1) {
+                while (!eof()) {
+                    if (read_u1() != 0)
+                        return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
     private:
         std::vector<uint8_t> buf;
         uint8_t* start;

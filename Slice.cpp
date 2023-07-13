@@ -14,6 +14,75 @@ bool Slice::bottom_field_pic_order_in_frame_present()
     return pps_->bottom_field_pic_order_in_frame_present() && !field_pic_flag_;
 }
 
+int Slice::parse_single_pred_weight_table(int idx)
+{
+
+    int luma_weight_flag, chroma_weight_flag;
+
+    int total_num;
+    std::vector<int>*luma_weight, *luma_offset,
+        *chroma_weight_Cb, *chroma_offset_Cb,
+        *chroma_weight_Cr, *chroma_offset_Cr;
+
+    if (idx == 0) {
+        total_num = num_ref_idx_l0_active_minus1();
+
+        luma_weight = &luma_weight_l0_;
+        luma_offset = &luma_offset_l0_;
+        chroma_weight_Cb = &chroma_weight_l0_Cb_;
+        chroma_offset_Cb = &chroma_offset_l0_Cb_;
+        chroma_weight_Cr = &chroma_weight_l0_Cr_;
+        chroma_offset_Cr = &chroma_offset_l0_Cr_;
+    } else {
+        total_num = num_ref_idx_l1_active_minus1();
+
+        luma_weight = &luma_weight_l1_;
+        luma_offset = &luma_offset_l1_;
+        chroma_weight_Cb = &chroma_weight_l1_Cb_;
+        chroma_offset_Cb = &chroma_offset_l1_Cb_;
+        chroma_weight_Cr = &chroma_weight_l1_Cr_;
+        chroma_offset_Cr = &chroma_offset_l1_Cr_;
+    }
+
+    for (int i = 0; i <= total_num; i++) {
+        luma_weight_flag = rbsp_data_->read_u1();
+        if (luma_weight_flag) {
+            luma_weight->push_back(rbsp_data_->read_se());
+            luma_offset->push_back(rbsp_data_->read_se());
+        } else {
+            luma_weight->push_back(1 << luma_log2_weight_denom_);
+            luma_offset->push_back(0);
+        }
+
+        if (sps_->ChromaArrayType() != 0) {
+            chroma_weight_flag = rbsp_data_->read_u1();
+            if (chroma_weight_flag) {
+                chroma_weight_Cb->push_back(rbsp_data_->read_se());
+                chroma_offset_Cb->push_back(rbsp_data_->read_se());
+                chroma_weight_Cr->push_back(rbsp_data_->read_se());
+                chroma_offset_Cr->push_back(rbsp_data_->read_se());
+            } else {
+                chroma_weight_Cb->push_back(1 << chroma_log2_weight_denom_);
+                chroma_offset_Cb->push_back(0);
+                chroma_weight_Cr->push_back(1 << chroma_log2_weight_denom_);
+                chroma_offset_Cr->push_back(0);
+            }
+        }
+    }
+
+    spdlog::trace("pred_weight_table_{}:", idx);
+    for (int i = 0; i <= total_num; i++) {
+        spdlog::trace("  luma_weight_l{}[{}] {}", idx, i, (*luma_weight)[i]);
+        spdlog::trace("  luma_offset_l{}[{}] {}", idx, i, (*luma_offset)[i]);
+        spdlog::trace("  chroma_weight_Cb_l{}[{}] {}", idx, i, (*chroma_weight_Cb)[i]);
+        spdlog::trace("  chroma_offset_Cb_l{}[{}] {}", idx, i, (*chroma_offset_Cb)[i]);
+        spdlog::trace("  chroma_weight_Cr_l{}[{}] {}", idx, i, (*chroma_weight_Cr)[i]);
+        spdlog::trace("  chroma_offset_Cr_l{}[{}] {}", idx, i, (*chroma_offset_Cr)[i]);
+    }
+
+    return 0;
+}
+
 int Slice::parse_pred_weight_table()
 {
     spdlog::trace("start parse pred_weight_table...");
@@ -28,7 +97,12 @@ int Slice::parse_pred_weight_table()
         spdlog::trace("chroma_log2_weight_denom is {}", chroma_log2_weight_denom_);
     }
 
-    return -1;
+    parse_single_pred_weight_table(0);
+
+    if (is_B_slice())
+        parse_single_pred_weight_table(1);
+
+    return 0;
 }
 
 int Slice::parse_single_ref_pic_list_modification(int idx)
@@ -62,6 +136,12 @@ int Slice::parse_single_ref_pic_list_modification(int idx)
         }
     } while (modification_of_pic_nums_idc != 3);
 
+    spdlog::trace("ref_pic_list[{}]:", idx);
+    for (int i = 0; i < list->size(); i++) {
+        spdlog::trace("  modification_of_pic_nums_idc {}, {}",
+            std::get<0>((*list)[i]), std::get<1>((*list)[i]));
+    }
+
     return ret;
 }
 
@@ -71,12 +151,14 @@ int Slice::parse_ref_pic_list_modification()
     if (!is_I_slice() && !is_SI_slice()) {
         ref_pic_list_modification_flag_l0_ = rbsp_data_->read_u1();
         if (ref_pic_list_modification_flag_l0_) {
+            spdlog::trace("will parse ref_pic_list_modification 0");
             ret = parse_single_ref_pic_list_modification(0);
         }
     }
     if (is_B_slice()) {
         ref_pic_list_modification_flag_l1_ = rbsp_data_->read_u1();
         if (ref_pic_list_modification_flag_l1_) {
+            spdlog::trace("will parse ref_pic_list_modification 1");
             ret = parse_single_ref_pic_list_modification(1);
         }
     }
@@ -91,10 +173,19 @@ int Slice::parse_dec_ref_pic_marking()
         long_term_frame_idx,
         max_long_term_frame_idx_plus1;
     if (rbsp_data_->idr_pic_flag()) {
+        spdlog::trace("{}: this slice is a idr pic", __func__);
+
         no_output_of_prior_pics_flag_ = rbsp_data_->read_u1();
+        spdlog::trace("no_output_of_prior_pics_flag {}", (bool)no_output_of_prior_pics_flag_);
+
         long_term_reference_flag_ = rbsp_data_->read_u1();
+        spdlog::trace("long_term_reference_flag {}", (bool)long_term_reference_flag_);
     } else {
+        spdlog::trace("{}: this slice is a non-idr ref pic", __func__);
+
         adaptive_ref_pic_marking_mode_flag_ = rbsp_data_->read_u1();
+        spdlog::trace("adaptive_ref_pic_marking_mode_flag {}", (bool)adaptive_ref_pic_marking_mode_flag_);
+
         if (adaptive_ref_pic_marking_mode_flag_) {
             do {
                 memory_management_control_operation = rbsp_data_->read_ue();
@@ -131,6 +222,14 @@ int Slice::parse_dec_ref_pic_marking()
                     return -1;
                 }
             } while (memory_management_control_operation != 0);
+
+            spdlog::trace("dec_ref_pic_marking:");
+            for (int i = 0; i < memory_management_control_operation_list_.size(); i++) {
+                spdlog::trace("  memory_management_control_operation {}, {}, {}",
+                    std::get<0>(memory_management_control_operation_list_[i]),
+                    std::get<1>(memory_management_control_operation_list_[i]),
+                    std::get<2>(memory_management_control_operation_list_[i]));
+            }
         }
     }
     return 0;
@@ -145,7 +244,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
 
     slice_type_ = rbsp_data_->read_ue();
     slice_type_enum_ = (enum SliceType)slice_type_;
-    spdlog::info("slice type: {}", slice_type_str(slice_type_enum_));
+    spdlog::warn("slice type: {}", slice_type_str(slice_type_enum_));
 
     pic_parameter_set_id_ = rbsp_data_->read_ue();
     spdlog::info("pps id for current slice {}", pic_parameter_set_id_);
@@ -168,7 +267,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
     }
 
     if (colour_plane_id_ != INT32_MIN) {
-        spdlog::info("has colour_plane_id, {}", colour_plane_id_);
+        spdlog::warn("check if this slice is a 4:4:4 chroma format, since it has colour_plane_id, {}", colour_plane_id_);
     }
 
     frame_num_ = rbsp_data_->read_u(sps_->frame_num_bits());
@@ -184,21 +283,26 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
     }
 
     if (field_pic_flag_) {
-        if (bottom_field_flag_)
-            spdlog::info("this slice is bottom field");
-        else
-            spdlog::info("this slice is top field");
-    } else
-        spdlog::info("this slice is frame");
+        if (bottom_field_flag_) {
+            spdlog::warn("this slice is bottom field");
+            is_bottom_field_ = true;
+        } else {
+            spdlog::warn("this slice is top field");
+            is_top_field_ = true;
+        }
+    } else {
+        spdlog::warn("this slice is frame");
+        is_frame_ = true;
+    }
 
     if (rbsp_data_->idr_pic_flag()) {
         idr_pic_id_ = rbsp_data_->read_ue();
-        spdlog::info("this slice is idr pic, idr_pic_id {}", idr_pic_id_);
+        spdlog::warn("this slice is idr pic, idr_pic_id {}", idr_pic_id_);
     } else
-        spdlog::info("this slice is not idr pic");
+        spdlog::warn("this slice is not idr pic");
 
     if (sps_->pic_order_cnt_type() == 0) {
-        spdlog::info("slice poc type 0");
+        spdlog::warn("slice poc type 0");
 
         pic_order_cnt_lsb_ = rbsp_data_->read_u(sps_->poc_lsb_bits());
         spdlog::warn("pic_order_cnt_lsb {}", pic_order_cnt_lsb_);
@@ -209,16 +313,16 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         }
     }
 
-    if (sps_->pic_order_cnt_type() == 1
-        && !sps_->delta_pic_order_always_zero()) {
-        spdlog::info("slice poc type 0");
+    if (sps_->pic_order_cnt_type() == 1) {
+        spdlog::warn("slice poc type 1");
+        if (!sps_->delta_pic_order_always_zero()) {
+            delta_pic_order_cnt_0_ = rbsp_data_->read_se();
+            spdlog::warn("delta_pic_order_cnt_0 {}", delta_pic_order_cnt_0_);
 
-        delta_pic_order_cnt_0_ = rbsp_data_->read_se();
-        spdlog::warn("delta_pic_order_cnt_0 {}", delta_pic_order_cnt_0_);
-
-        if (bottom_field_pic_order_in_frame_present()) {
-            delta_pic_order_cnt_1_ = rbsp_data_->read_se();
-            spdlog::warn("delta_pic_order_cnt_1 {}", delta_pic_order_cnt_1_);
+            if (bottom_field_pic_order_in_frame_present()) {
+                delta_pic_order_cnt_1_ = rbsp_data_->read_se();
+                spdlog::warn("delta_pic_order_cnt_1 {}", delta_pic_order_cnt_1_);
+            }
         }
     }
 
@@ -237,8 +341,12 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
 
         // update final_num_ref_idx_l0_active_minus1_ final_num_ref_idx_l1_active_minus1_ from pps
         final_num_ref_idx_l0_active_minus1_ = pps_->num_ref_idx_l0_default_active_minus1();
-        if (is_B_slice())
+        spdlog::trace("final_num_ref_idx_l0_active_minus1 from default {}", final_num_ref_idx_l0_active_minus1_);
+
+        if (is_B_slice()) {
             final_num_ref_idx_l1_active_minus1_ = pps_->num_ref_idx_l1_default_active_minus1();
+            spdlog::trace("final_num_ref_idx_l1_active_minus1 from default {}", final_num_ref_idx_l1_active_minus1_);
+        }
 
         num_ref_idx_active_override_flag_ = rbsp_data_->read_u1();
         spdlog::info("num_ref_idx_active_override_flag {}", static_cast<bool>(num_ref_idx_active_override_flag_));
@@ -258,6 +366,13 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         }
     }
 
+    if (is_P_slice() || is_SP_slice() || is_B_slice()) {
+        spdlog::warn("final_num_ref_idx_l0_active_minus1 {}", final_num_ref_idx_l0_active_minus1_);
+
+        if (is_B_slice())
+            spdlog::warn("final_num_ref_idx_l1_active_minus1 {}", final_num_ref_idx_l1_active_minus1_);
+    }
+
     if (rbsp_data_->nal_unit_type() == 20 || rbsp_data_->nal_unit_type() == 21) {
         spdlog::error("ref_pic_list_mvc_modification is unsupported");
         return -1;
@@ -268,14 +383,17 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
 
     if ((pps_->weighted_pred() && (is_P_slice() || is_SP_slice()))
         || (pps_->weighted_bipred() == 1 && is_B_slice())) {
-        spdlog::error("pred_weight_table is unsupported");
-        return -1;
+        // spdlog::error("pred_weight_table is unsupported");
+        // return -1;
+        parse_pred_weight_table();
     }
 
     if (rbsp_data_->nal_ref_idc() != 0) {
         // dec_ref_pic_marking
+        spdlog::warn("this is ref picture, will parse dec_ref_pic_marking");
         parse_dec_ref_pic_marking();
-    }
+    } else
+        spdlog::warn("this is non-ref picture");
 
     if (pps_->entropy_coding_mode()
         && !is_I_slice()

@@ -15,7 +15,11 @@ int Pps::parse()
     spdlog::info("sps id for current pps {}", seq_parameter_set_id_);
 
     entropy_coding_mode_flag_ = rbsp_data_->read_u1();
-    spdlog::warn("entropy_coding_mode_flag is {}", static_cast<bool>(entropy_coding_mode_flag_));
+    if (entropy_coding_mode_flag_) {
+        spdlog::error("entropy_coding_mode_flag is true, unsupported");
+        return -1;
+    } else
+        spdlog::warn("entropy_coding_mode_flag is false, OK");
 
     bottom_field_pic_order_in_frame_present_flag_ = rbsp_data_->read_u1();
 
@@ -28,11 +32,11 @@ int Pps::parse()
         spdlog::error("num_slice_groups_minus1 > 0, unsupported");
         return -1;
     } else
-        spdlog::info("num_slice_groups_minus1 = 0, OK");
+        spdlog::warn("num_slice_groups_minus1 = 0, OK");
 
     num_ref_idx_l0_default_active_minus1_ = rbsp_data_->read_ue();
     num_ref_idx_l1_default_active_minus1_ = rbsp_data_->read_ue();
-    spdlog::info("num_ref_idx_l0_default_active_minus1 {}, num_ref_idx_l1_default_active_minus1 {}",
+    spdlog::warn("num_ref_idx_l0_default_active_minus1 {}, num_ref_idx_l1_default_active_minus1 {}",
         num_ref_idx_l0_default_active_minus1_, num_ref_idx_l1_default_active_minus1_);
 
     weighted_pred_flag_ = rbsp_data_->read_u1();
@@ -55,7 +59,11 @@ int Pps::parse()
     spdlog::warn("constrained_intra_pred_flag {}", static_cast<bool>(constrained_intra_pred_flag_));
 
     redundant_pic_cnt_present_flag_ = rbsp_data_->read_u1();
-    spdlog::warn("redundant_pic_cnt_present_flag {}", static_cast<bool>(redundant_pic_cnt_present_flag_));
+    if (redundant_pic_cnt_present_flag_) {
+        spdlog::error("redundant_pic_cnt_present_flag is true, unsupported");
+        return -1;
+    } else
+        spdlog::warn("redundant_pic_cnt_present_flag is false, OK");
 
     if (!rbsp_data_->eof()) {
         spdlog::trace("will read transform_8x8_mode_flag");
@@ -65,9 +73,16 @@ int Pps::parse()
             spdlog::error("pic_scaling_matrix_present_flag is true, unsupported");
             return -1;
         }
+        second_chroma_qp_index_offset_ = rbsp_data_->read_se();
+        spdlog::trace("second_chroma_qp_index_offset {}", second_chroma_qp_index_offset_);
     }
 
     spdlog::info("transform_8x8_mode_flag {}", static_cast<bool>(transform_8x8_mode_flag_));
+
+    if (!rbsp_data_->check_trailing_bits()) {
+        spdlog::error("check_trailing_bits failed in read pps");
+        return -1;
+    }
 
     return 0;
 }

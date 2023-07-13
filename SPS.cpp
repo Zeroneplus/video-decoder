@@ -43,42 +43,79 @@ int Sps::parse()
         }
 
         bit_depth_luma_minus8_ = rbsp_data_->read_ue();
+        spdlog::trace("bit_depth_luma_minus8 {}", bit_depth_luma_minus8_);
+
         bit_depth_chroma_minus8_ = rbsp_data_->read_ue();
+        spdlog::trace("bit_depth_chroma_minus8 {}", bit_depth_chroma_minus8_);
+
         qpprime_y_zero_transform_bypass_flag_ = rbsp_data_->read_u1();
+        spdlog::trace("qpprime_y_zero_transform_bypass_flag_ {}", (bool)qpprime_y_zero_transform_bypass_flag_);
 
         seq_scaling_matrix_present_flag_ = rbsp_data_->read_u1();
         if (seq_scaling_matrix_present_flag_) {
-            spdlog::error("seq_scaling_matrix_present is true, is unsupported");
+            spdlog::error("seq_scaling_matrix_present is true, unsupported");
             return -1;
-        }
+        } else
+            spdlog::trace("seq_scaling_matrix_present_flag is false, OK");
     }
 
     spdlog::info("chroma_format_idc {}", chroma_format_idc_);
-    spdlog::info("separate_colour_plane_flag {}", separate_colour_plane_flag_);
+
+    // calculate Chroma Format、SubWidthC、SubHeightC
+    switch (chroma_format_idc_) {
+    case 0:
+        assert(!separate_colour_plane_flag_);
+        spdlog::info("chroma_format: monochrome");
+        break;
+    case 1:
+        assert(!separate_colour_plane_flag_);
+        spdlog::info("chroma_format: 4:2:0");
+        SubWidthC_ = 2;
+        SubHeightC_ = 2;
+        break;
+    case 2:
+        assert(!separate_colour_plane_flag_);
+        spdlog::info("chroma_format: 4:2:2");
+        SubWidthC_ = 2;
+        SubHeightC_ = 1;
+        break;
+    case 3:
+        spdlog::info("chroma_format: 4:4:4");
+        spdlog::info("  separate_colour_plane_flag {}",
+            (bool)separate_colour_plane_flag_);
+        if (!separate_colour_plane_flag_) {
+            SubWidthC_ = 1;
+            SubHeightC_ = 1;
+        }
+        break;
+    default:
+        spdlog::error("invalid chroma_format_idc {}", chroma_format_idc_);
+        return -1;
+    }
 
     if (separate_colour_plane_flag_ == 0)
         ChromaArrayType_ = chroma_format_idc_;
     else
         ChromaArrayType_ = 0;
 
-    spdlog::info("calculated ChromaArrayType {}", ChromaArrayType_);
+    spdlog::warn("calculated ChromaArrayType {}", ChromaArrayType_);
 
     log2_max_frame_num_minus4_ = rbsp_data_->read_ue();
-    spdlog::info("log2_max_frame_num_minus4 {}", log2_max_frame_num_minus4_);
+    spdlog::warn("log2_max_frame_num_minus4 {}", log2_max_frame_num_minus4_);
     MaxFrameNum_ = 1 << (log2_max_frame_num_minus4_ + 4);
-    spdlog::info("allowed MaxFrameNum {}", MaxFrameNum_);
+    spdlog::warn("allowed MaxFrameNum {}", MaxFrameNum_);
 
     pic_order_cnt_type_ = rbsp_data_->read_ue();
     if (pic_order_cnt_type_ == 0) {
-        spdlog::info("poc type is 0...");
+        spdlog::warn("poc type is 0...");
 
         log2_max_pic_order_cnt_lsb_minus4_ = rbsp_data_->read_ue();
-        spdlog::info("log2_max_pic_order_cnt_lsb_minus4 {}", log2_max_pic_order_cnt_lsb_minus4_);
+        spdlog::warn("log2_max_pic_order_cnt_lsb_minus4 {}", log2_max_pic_order_cnt_lsb_minus4_);
 
         MaxPicOrderCntLsb_ = 1 << (log2_max_pic_order_cnt_lsb_minus4_ + 4);
-        spdlog::info("allowed MaxPicOrderCntLsb {}", MaxPicOrderCntLsb_);
+        spdlog::warn("allowed MaxPicOrderCntLsb {}", MaxPicOrderCntLsb_);
     } else if (pic_order_cnt_type_ == 1) {
-        spdlog::info("poc type is 1...");
+        spdlog::warn("poc type is 1...");
 
         delta_pic_order_always_zero_flag_ = rbsp_data_->read_u1();
         if (delta_pic_order_always_zero_flag_)
@@ -112,13 +149,13 @@ int Sps::parse()
     }
 
     max_num_ref_frames_ = rbsp_data_->read_ue();
-    spdlog::info("max_num_ref_frames {}", max_num_ref_frames_);
+    spdlog::warn("max_num_ref_frames {}", max_num_ref_frames_);
 
     gaps_in_frame_num_value_allowed_flag_ = rbsp_data_->read_u1();
     if (gaps_in_frame_num_value_allowed_flag_)
         spdlog::warn("gaps is allowed in frame num");
     else
-        spdlog::info("gaps is not allowed in frame num");
+        spdlog::warn("gaps is not allowed in frame num");
 
     pic_width_in_mbs_minus1_ = rbsp_data_->read_ue();
     PicWidthInMbs_ = pic_width_in_mbs_minus1_ + 1;
@@ -133,13 +170,13 @@ int Sps::parse()
     if (!frame_mbs_only_flag_) {
         mb_adaptive_frame_field_flag_ = rbsp_data_->read_u1();
         if (mb_adaptive_frame_field_flag_)
-            spdlog::info("this file allow field, frame, mbaff, "
+            spdlog::warn("this file allow field, frame, mbaff, "
                          "further info should be determined from slice header and mb header");
         else
-            spdlog::info("this file allow field, frame,"
+            spdlog::warn("this file allow field, frame,"
                          "further info should be determined from slice header");
     } else
-        spdlog::info("this file is frame_mbs_only");
+        spdlog::warn("this file is frame_mbs_only");
 
     FrameHeightInMbs_ = (2 - frame_mbs_only_flag_) * PicHeightInMapUnits_;
 
@@ -152,12 +189,20 @@ int Sps::parse()
     frame_cropping_flag_ = rbsp_data_->read_u1();
     if (frame_cropping_flag_) {
         spdlog::warn("frame_cropping_flag is true");
+
         frame_crop_left_offset_ = rbsp_data_->read_ue();
+        spdlog::trace("frame_crop_left_offset {}", frame_crop_left_offset_);
+
         frame_crop_right_offset_ = rbsp_data_->read_ue();
+        spdlog::trace("frame_crop_right_offset {}", frame_crop_right_offset_);
+
         frame_crop_top_offset_ = rbsp_data_->read_ue();
+        spdlog::trace("frame_crop_top_offset {}", frame_crop_top_offset_);
+
         frame_crop_bottom_offset_ = rbsp_data_->read_ue();
+        spdlog::trace("frame_crop_bottom_offset {}", frame_crop_bottom_offset_);
     } else
-        spdlog::info("frame_cropping_flag is false");
+        spdlog::warn("frame_cropping_flag is false");
 
     vui_parameters_present_flag_ = rbsp_data_->read_u1();
 

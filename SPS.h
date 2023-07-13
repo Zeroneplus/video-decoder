@@ -51,8 +51,8 @@ private:
     int level_idc_;
     int seq_parameter_set_id_;
 
-    int chroma_format_idc_ = 1;
-    int separate_colour_plane_flag_ = 0;
+    int chroma_format_idc_ = 1; // default is 1
+    int separate_colour_plane_flag_ = 0; // default is 0
     int bit_depth_luma_minus8_ = 0;
     int bit_depth_chroma_minus8_ = 0;
     int qpprime_y_zero_transform_bypass_flag_ = 0;
@@ -92,6 +92,13 @@ private:
 
 public:
     int ChromaArrayType() { return ChromaArrayType_; }
+    bool MbaffFlag() { return mb_adaptive_frame_field_flag_; }
+    int FrameHeightInMbs() { return FrameHeightInMbs_; }
+    int MbHeightC() { return 16 / SubHeightC_; }
+    int MbWidthC() { return 16 / SubWidthC_; }
+    int PicWidthInMbs() { return PicWidthInMbs_; }
+    int PicWidthInSamplesL() { return PicWidthInSamplesL_; }
+    int MaxFrameNum() { return MaxFrameNum_; }
 
 private:
     int ChromaArrayType_;
@@ -106,4 +113,7 @@ private:
     int PicWidthInSamplesC_;
     int PicHeightInMapUnits_;
     int FrameHeightInMbs_;
+
+    int SubWidthC_ = -1;
+    int SubHeightC_ = -1;
 };

@@ -59,6 +59,16 @@ public:
         return num_ref_idx_l1_default_active_minus1_;
     }
 
+    int pic_init_qp_minus26()
+    {
+        return pic_init_qp_minus26_;
+    }
+
+    int pic_init_qs_minus26()
+    {
+        return pic_init_qs_minus26_;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* pps field */
@@ -81,4 +91,5 @@ private:
     int redundant_pic_cnt_present_flag_;
     int transform_8x8_mode_flag_ = 0;
     int pic_scaling_matrix_present_flag_ = 0;
+    int second_chroma_qp_index_offset_ = 0;
 };
