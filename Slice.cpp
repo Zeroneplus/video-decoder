@@ -150,6 +150,7 @@ int Slice::parse_ref_pic_list_modification()
     int ret = 0;
     if (!is_I_slice() && !is_SI_slice()) {
         ref_pic_list_modification_flag_l0_ = rbsp_data_->read_u1();
+        spdlog::info("ref_pic_list_modification_flag_l0 {}", (bool)ref_pic_list_modification_flag_l0_);
         if (ref_pic_list_modification_flag_l0_) {
             spdlog::trace("will parse ref_pic_list_modification 0");
             ret = parse_single_ref_pic_list_modification(0);
@@ -157,6 +158,7 @@ int Slice::parse_ref_pic_list_modification()
     }
     if (is_B_slice()) {
         ref_pic_list_modification_flag_l1_ = rbsp_data_->read_u1();
+        spdlog::info("ref_pic_list_modification_flag_l1 {}", (bool)ref_pic_list_modification_flag_l1_);
         if (ref_pic_list_modification_flag_l1_) {
             spdlog::trace("will parse ref_pic_list_modification 1");
             ret = parse_single_ref_pic_list_modification(1);
