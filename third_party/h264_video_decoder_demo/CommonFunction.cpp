@@ -160,6 +160,7 @@ int createNestedDir(const char *dir) //创建嵌套目录
 #else
 int createNestedDir(const char *dir) //创建嵌套目录
 {
+#if 0
     if (strlen(dir) >= 600)
     {
         return -1;
@@ -214,7 +215,7 @@ int createNestedDir(const char *dir) //创建嵌套目录
             dir2[i] = dir1[i];
         }
     }
-
+#endif
     return 0;
 }
 #endif

@@ -510,7 +510,7 @@ int CH264PictureBase::createEmptyImage(MY_BITMAP &bitmap, int32_t width, int32_t
 
     bitmap.bmWidthBytes = (width * bmBitsPixel / 8 + 3) / 4 * 4;
 
-    printf("CreateEmptyImage: [%d x %d] memory = %d bytes;\n", width, height, bitmap.bmHeight * bitmap.bmWidthBytes);
+    printf("CreateEmptyImage: [%d x %d] memory = %ld bytes;\n", width, height, bitmap.bmHeight * bitmap.bmWidthBytes);
 
     uint8_t *pBits = (uint8_t *)my_malloc(bitmap.bmHeight * bitmap.bmWidthBytes); //在堆上申请
     if (pBits == NULL){ printf("CreateEmptyImage: pBits == NULL\n"); return -1; }

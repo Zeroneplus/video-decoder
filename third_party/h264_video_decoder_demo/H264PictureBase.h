@@ -26,28 +26,28 @@ class CH264Picture;
 class CH264PictureBase
 {
 public:
-    int32_t         mb_x; //´æ´¢µ±Ç°ÕýÔÚ½âÂëµÄºê¿éµÄX×ø±ê£¨Ïà¶ÔÓÚÍ¼Æ¬×óÉÏ½ÇÎ»ÖÃ£©
-    int32_t         mb_y; //´æ´¢µ±Ç°ÕýÔÚ½âÂëµÄºê¿éµÄY×ø±ê£¨Ïà¶ÔÓÚÍ¼Æ¬×óÉÏ½ÇÎ»ÖÃ£©
-    int32_t         m_pic_coded_width_pixels; //Í¼Æ¬¿í£¨µ¥Î»£ºÏñËØ£©£¬ÀýÈç£º1920x1088
-    int32_t         m_pic_coded_height_pixels; //Í¼Æ¬¸ß£¨µ¥Î»£ºÏñËØ£©£¬ÀýÈç£º1920x1088
-    int32_t         PicWidthInMbs; //Í¼Æ¬¿í£¨µ¥Î»£º16x16µÄºê¿é£©
-    int32_t         PicHeightInMbs; //Í¼Æ¬¸ß£¨µ¥Î»£º16x16µÄºê¿é£©
+    int32_t         mb_x; //ï¿½æ´¢ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ú½ï¿½ï¿½ï¿½Äºï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ê£¨ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½ï¿½ï¿½Ï½ï¿½Î»ï¿½Ã£ï¿½
+    int32_t         mb_y; //ï¿½æ´¢ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ú½ï¿½ï¿½ï¿½Äºï¿½ï¿½ï¿½Yï¿½ï¿½ï¿½ê£¨ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½ï¿½ï¿½Ï½ï¿½Î»ï¿½Ã£ï¿½
+    int32_t         m_pic_coded_width_pixels; //Í¼Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ç£º1920x1088
+    int32_t         m_pic_coded_height_pixels; //Í¼Æ¬ï¿½ß£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ç£º1920x1088
+    int32_t         PicWidthInMbs; //Í¼Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½16x16ï¿½Äºï¿½é£©
+    int32_t         PicHeightInMbs; //Í¼Æ¬ï¿½ß£ï¿½ï¿½ï¿½Î»ï¿½ï¿½16x16ï¿½Äºï¿½é£©
     int32_t         PicSizeInMbs; //PicSizeInMbs = PicWidthInMbs * PicHeightInMbs;
-    int32_t         MbWidthL; //ÁÁ¶Èºê¿éµÄ¿í£¨µ¥Î»£ºÏñËØ£©
-    int32_t         MbHeightL; //ÁÁ¶Èºê¿éµÄ¿í£¨µ¥Î»£ºÏñËØ£©
-    int32_t         MbWidthC; //É«¶Èºê¿éµÄ¿í£¨µ¥Î»£ºÏñËØ£©
-    int32_t         MbHeightC; //É«¶Èºê¿éµÄ¿í£¨µ¥Î»£ºÏñËØ£©
-    int32_t         PicWidthInSamplesL; //PicWidthInSamplesL = PicWidthInMbs * 16; //½âÂëºóÍ¼Æ¬µÄ¿í¶È£¨µ¥Î»£ºÏñËØ£©
+    int32_t         MbWidthL; //ï¿½ï¿½ï¿½Èºï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
+    int32_t         MbHeightL; //ï¿½ï¿½ï¿½Èºï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
+    int32_t         MbWidthC; //É«ï¿½Èºï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
+    int32_t         MbHeightC; //É«ï¿½Èºï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
+    int32_t         PicWidthInSamplesL; //PicWidthInSamplesL = PicWidthInMbs * 16; //ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½Ä¿ï¿½ï¿½È£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
     int32_t         PicWidthInSamplesC; //PicWidthInSamplesC = PicWidthInMbs * MbWidthC;
-    int32_t         PicHeightInSamplesL; //PicHeightInSamplesL = PicHeightInMbs * 16; //½âÂëºóÍ¼Æ¬µÄ¸ß¶È£¨µ¥Î»£ºÏñËØ£©
+    int32_t         PicHeightInSamplesL; //PicHeightInSamplesL = PicHeightInMbs * 16; //ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½Ä¸ß¶È£ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ø£ï¿½
     int32_t         PicHeightInSamplesC; //PicHeightInSamplesC = PicHeightInMbs * MbHeightC;
     int32_t         Chroma_Format; //CHROMA_FORMAT_IDC_420
-    int32_t         mb_cnt; //½âÂëµÄºê¿éµÄ¼ÆÊý
-    int32_t         CurrMbAddr; //µ±Ç°½âÂëµÄºê¿éÔÚÍ¼Æ¬ÖÐµÄ×ø±êÎ»ÖÃ(´Ë×Ö¶Î·Ç³£ÖØÒª)
+    int32_t         mb_cnt; //ï¿½ï¿½ï¿½ï¿½Äºï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+    int32_t         CurrMbAddr; //ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½Äºï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½Ðµï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½(ï¿½ï¿½ï¿½Ö¶Î·Ç³ï¿½ï¿½ï¿½Òª)
     
-    uint8_t *       m_pic_buff_luma; //´æ´¢½âÂëºóÍ¼Æ¬µÄY·ÖÁ¿Êý¾Ý cSL[1920x1088]
-    uint8_t *       m_pic_buff_cb; //´æ´¢½âÂëºóÍ¼Æ¬µÄcb·ÖÁ¿Êý¾Ý
-    uint8_t *       m_pic_buff_cr; //´æ´¢½âÂëºóÍ¼Æ¬µÄcr·ÖÁ¿Êý¾Ý
+    uint8_t *       m_pic_buff_luma; //ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½ï¿½Yï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ cSL[1920x1088]
+    uint8_t *       m_pic_buff_cb; //ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½ï¿½cbï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    uint8_t *       m_pic_buff_cr; //ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Æ¬ï¿½ï¿½crï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     
     int32_t         TopFieldOrderCnt;
     int32_t         BottomFieldOrderCnt;
@@ -59,36 +59,36 @@ public:
     int32_t         frameNumInPicOrderCntCycle;
     int32_t         expectedPicOrderCnt;
     int32_t         PicOrderCnt;
-    int32_t         FrameNum; //To each short-term reference picture ¶ÌÆÚ²Î¿¼Ö¡
-    int32_t         FrameNumWrap; //To each short-term reference picture ¶ÌÆÚ²Î¿¼Ö¡
-    int32_t         LongTermFrameIdx; //Each long-term reference picture ³¤ÆÚ²Î¿¼Ö¡
-    int32_t         PicNum; //To each short-term reference picture ¶ÌÆÚ²Î¿¼Í¼Ïñ
-    int32_t         LongTermPicNum; //To each long-term reference picture ³¤ÆÚ²Î¿¼Í¼Ïñ
+    int32_t         FrameNum; //To each short-term reference picture ï¿½ï¿½ï¿½Ú²Î¿ï¿½Ö¡
+    int32_t         FrameNumWrap; //To each short-term reference picture ï¿½ï¿½ï¿½Ú²Î¿ï¿½Ö¡
+    int32_t         LongTermFrameIdx; //Each long-term reference picture ï¿½ï¿½ï¿½Ú²Î¿ï¿½Ö¡
+    int32_t         PicNum; //To each short-term reference picture ï¿½ï¿½ï¿½Ú²Î¿ï¿½Í¼ï¿½ï¿½
+    int32_t         LongTermPicNum; //To each long-term reference picture ï¿½ï¿½ï¿½Ú²Î¿ï¿½Í¼ï¿½ï¿½
     int32_t         FieldNum;
     int32_t         MaxLongTermFrameIdx; // -1: "no long-term frame indices"
-    int32_t         memory_management_control_operation_5_flag; //ËùÓÐ²Î¿¼Í¼Ïñ±ê¼ÇÎª¡°²»ÓÃÓÚ²Î¿¼¡±
+    int32_t         memory_management_control_operation_5_flag; //ï¿½ï¿½ï¿½Ð²Î¿ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²Î¿ï¿½ï¿½ï¿½
     int32_t         memory_management_control_operation_6_flag;
-    H264_PICTURE_MARKED_AS         reference_marked_type; //I,P×÷Îª²Î¿¼Ö¡µÄmark×´Ì¬
+    H264_PICTURE_MARKED_AS         reference_marked_type; //I,Pï¿½ï¿½Îªï¿½Î¿ï¿½Ö¡ï¿½ï¿½mark×´Ì¬
     
     CH264SliceHeader    m_h264_slice_header;
-    CH264SliceData      m_h264_slice_data; //×¢Òâ£ºÒ»¸öpictureÖÐ¿ÉÄÜÓÐ¶à¸öslice data
-    CH264MacroBlock *   m_mbs; //´æ´¢µ±Ç°Í¼ÏñµÄËùÓÐºê¿é m_mbs[PicSizeInMbs] = m_mbs[PicWidthInMbs * PicHeightInMbs];
+    CH264SliceData      m_h264_slice_data; //×¢ï¿½â£ºÒ»ï¿½ï¿½pictureï¿½Ð¿ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ï¿½slice data
+    CH264MacroBlock *   m_mbs; //ï¿½æ´¢ï¿½ï¿½Ç°Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ðºï¿½ï¿½ m_mbs[PicSizeInMbs] = m_mbs[PicWidthInMbs * PicHeightInMbs];
     int32_t             LevelScale4x4[6][4][4];
     int32_t             LevelScale8x8[6][8][8];
 
     H264_PICTURE_CODED_TYPE    m_picture_coded_type;
     H264_PICTURE_TYPE          m_picture_type;
-    int32_t                    m_is_malloc_mem_by_myself; //ÊÇ·ñÒÑ¾­³õÊ¼»¯
-    int32_t                    m_is_decode_finished; //±¾Ö¡/³¡ÊÇ·ñ½âÂëÍê±Ï
-    int32_t                    m_slice_cnt; //Ò»¸öpictureÖÐ¿ÉÄÜÓÐ¶à¸öslice data
+    int32_t                    m_is_malloc_mem_by_myself; //ï¿½Ç·ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½
+    int32_t                    m_is_decode_finished; //ï¿½ï¿½Ö¡/ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    int32_t                    m_slice_cnt; //Ò»ï¿½ï¿½pictureï¿½Ð¿ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ï¿½slice data
     
     CH264Picture *      m_dpb[16]; //[16] decoded picture buffer
     CH264Picture *      m_parent;
     CH264Picture *      m_RefPicList0[16]; //[16] decoding a P or SP slice;
     CH264Picture *      m_RefPicList1[16]; //[16] decoding a B slice;
-    int32_t             m_RefPicList0Length; //RefPicList0ÅÅÐòºóµÄ²Î¿¼Í¼ÏñÊýÄ¿
-    int32_t             m_RefPicList1Length; //RefPicList1ÅÅÐòºóµÄ²Î¿¼Í¼ÏñÊýÄ¿
-    int32_t             m_PicNumCnt; //Í¼Æ¬µÝÔö¼ÆÊý
+    int32_t             m_RefPicList0Length; //RefPicList0ï¿½ï¿½ï¿½ï¿½ï¿½Ä²Î¿ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Ä¿
+    int32_t             m_RefPicList1Length; //RefPicList1ï¿½ï¿½ï¿½ï¿½ï¿½Ä²Î¿ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Ä¿
+    int32_t             m_PicNumCnt; //Í¼Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     
 public:
     CH264PictureBase();
@@ -99,28 +99,28 @@ public:
     int reset();
     int init(CH264SliceHeader &slice_header);
     int unInit();
-    CH264PictureBase & operator = (const CH264PictureBase &src); //ÖØÔØµÈºÅÔËËã·û
+    CH264PictureBase & operator = (const CH264PictureBase &src); //ï¿½ï¿½ï¿½ØµÈºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     int copyData(const CH264PictureBase &src, bool isMallocAndCopyData);
     int copyData2(const CH264PictureBase &src, int32_t copyMbsDataFlag);
     int copyDataPicOrderCnt(const CH264PictureBase &src);
     
     //-------------------------------------
-    int convertYuv420pToBgr24(uint32_t width, uint32_t height, const uint8_t *yuv420p, uint8_t *bgr24, uint32_t widthBytesBgr24); //Í¼Ïñ²»ÊÇÉÏÏÂ·­×ªµÄ£¬Ö÷ÒªÓÃÓÚ±£´æ³ÉBMPÍ¼Æ¬
-    int convertYuv420pToBgr24FlipLines(uint32_t width, uint32_t height, const uint8_t *yuv420p, uint8_t *bgr24, uint32_t widthBytesBgr24); //Í¼ÏñÊÇÉÏÏÂ·­×ªµÄ£¬Ö÷ÒªÓÃÓÚ²¥·ÅÆ÷»­Í¼
-    int createEmptyImage(MY_BITMAP &bitmap, int32_t width, int32_t height, int32_t bmBitsPixel); //ÔÚÄÚ´æÖÐ´´½¨Ò»·ù¿Õ°×Î»Í¼
+    int convertYuv420pToBgr24(uint32_t width, uint32_t height, const uint8_t *yuv420p, uint8_t *bgr24, uint32_t widthBytesBgr24); //Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½×ªï¿½Ä£ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½BMPÍ¼Æ¬
+    int convertYuv420pToBgr24FlipLines(uint32_t width, uint32_t height, const uint8_t *yuv420p, uint8_t *bgr24, uint32_t widthBytesBgr24); //Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½×ªï¿½Ä£ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼
+    int createEmptyImage(MY_BITMAP &bitmap, int32_t width, int32_t height, int32_t bmBitsPixel); //ï¿½ï¿½ï¿½Ú´ï¿½ï¿½Ð´ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Õ°ï¿½Î»Í¼
     int saveToBmpFile(const char *filename);
     int saveBmp(const char *filename, MY_BITMAP *pBitmap);
     int writeYUV(const char *filename);
     int getOneEmptyPicture(CH264Picture *&pic);
     int end_decode_the_picture_and_get_a_new_empty_picture(CH264Picture *&newEmptyPicture);
 
-    //--------------²Î¿¼Ö¡ÁÐ±íÖØÅÅÐò------------------------
+    //--------------ï¿½Î¿ï¿½Ö¡ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½------------------------
     int Decoding_process_for_picture_order_count();
     int Decoding_process_for_picture_order_count_type_0(const CH264PictureBase *picture_previous_ref); //8.2.1.1
     int Decoding_process_for_picture_order_count_type_1(const CH264PictureBase *picture_previous); //8.2.1.2
     int Decoding_process_for_picture_order_count_type_2(const CH264PictureBase *picture_previous); //8.2.1.3
 
-    int Decoding_process_for_reference_picture_lists_construction(CH264Picture *(&dpb)[16], CH264Picture *(&RefPicList0)[16], CH264Picture *(&RefPicList1)[16]); //8.2.4 ²Î¿¼Í¼ÏñÁÐ±íµÄÖØÅÅÐò¹ý³Ì
+    int Decoding_process_for_reference_picture_lists_construction(CH264Picture *(&dpb)[16], CH264Picture *(&RefPicList0)[16], CH264Picture *(&RefPicList1)[16]); //8.2.4 ï¿½Î¿ï¿½Í¼ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     int Decoding_process_for_picture_numbers(CH264Picture *(&dpb)[16]); //8.2.4.1
 
     int Initialisation_process_for_reference_picture_lists(CH264Picture *(&dpb)[16], CH264Picture *(&RefPicList0)[16], CH264Picture *(&RefPicList1)[16]); //8.2.4.2
@@ -133,19 +133,19 @@ public:
     int Initialisation_process_for_reference_picture_lists_in_fields(CH264Picture *(&refFrameListXShortTerm)[16], CH264Picture *(&refFrameListXLongTerm)[16], 
             CH264Picture *(&RefPicListX)[16], int32_t &RefPicListXLength, int32_t listX); //8.2.4.2.5
 
-    int Modification_process_for_reference_picture_lists(CH264Picture *(&RefPicList0)[16], CH264Picture *(&RefPicList1)[16]); //8.2.4.3 ²Î¿¼Í¼ÏñÁÐ±íµÄÖØÅÅÐò¹ý³Ì
+    int Modification_process_for_reference_picture_lists(CH264Picture *(&RefPicList0)[16], CH264Picture *(&RefPicList1)[16]); //8.2.4.3 ï¿½Î¿ï¿½Í¼ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     int Modification_process_of_reference_picture_lists_for_short_term_reference_pictures(int32_t &refIdxLX, int32_t &picNumLXPred, int32_t modification_of_pic_nums_idc, 
             int32_t abs_diff_pic_num_minus1, int32_t num_ref_idx_lX_active_minus1, CH264Picture *(&RefPicListX)[16]); //8.2.4.3.1
     int Modification_process_of_reference_picture_lists_for_long_term_reference_pictures(int32_t &refIdxLX, int32_t picNumLXPred, 
             int32_t num_ref_idx_lX_active_minus1, int32_t long_term_pic_num, CH264Picture *(&RefPicListX)[16]); //8.2.4.3.2
     
-    int Decoded_reference_picture_marking_process(CH264Picture *(&dpb)[16]); //8.2.5 Ã¿Ò»ÕÅÍ¼Æ¬½âÂëÍê³Éºó£¬¶¼ÐèÒª±ê¼ÇÒ»´ÎÍ¼Ïñ²Î¿¼ÁÐ±í
+    int Decoded_reference_picture_marking_process(CH264Picture *(&dpb)[16]); //8.2.5 Ã¿Ò»ï¿½ï¿½Í¼Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éºó£¬¶ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½Ò»ï¿½ï¿½Í¼ï¿½ï¿½Î¿ï¿½ï¿½Ð±ï¿½
     int Sequence_of_operations_for_decoded_reference_picture_marking_process(CH264Picture *(&dpb)[16]); //8.2.5.1
     int Decoding_process_for_gaps_in_frame_num(); //8.2.5.2
     int Sliding_window_decoded_reference_picture_marking_process(CH264Picture *(&dpb)[16]); //8.2.5.3
     int Adaptive_memory_control_decoded_reference_picture_marking_process(CH264Picture *(&dpb)[16]); //8.2.5.4
 
-    //--------------Ö¡ÄÚÔ¤²â------------------------
+    //--------------Ö¡ï¿½ï¿½Ô¤ï¿½ï¿½------------------------
     int getIntra4x4PredMode(int32_t luma4x4BlkIdx, int32_t &Intra4x4PredMode_luma4x4BlkIdx_of_CurrMbAddr, int32_t isChroma); //8.3.1.1
     int getIntra8x8PredMode(int32_t luma8x8BlkIdx, int32_t &Intra8x8PredMode_luma8x8BlkIdx_of_CurrMbAddr, int32_t isChroma); //8.3.2.1
     int Intra_4x4_sample_prediction(int32_t luma4x4BlkIdx, int32_t PicWidthInSamples, uint8_t *pic_buff_luma_pred, int32_t isChroma, int32_t BitDepth); //8.3.1.2
@@ -156,7 +156,7 @@ public:
     int Intra_chroma_sample_prediction_for_YUV444(uint8_t *pic_buff_chroma_pred, int32_t PicWidthInSamples); //8.3.4.5
     int Sample_construction_process_for_I_PCM_macroblocks(); //8.3.5
     
-    inline int Inverse_macroblock_scanning_process(int32_t MbaffFrameFlag, int32_t mbAddr, int32_t mb_field_decoding_flag, int32_t &x, int32_t &y); //6.4.1
+    int Inverse_macroblock_scanning_process(int32_t MbaffFrameFlag, int32_t mbAddr, int32_t mb_field_decoding_flag, int32_t &x, int32_t &y); //6.4.1
     int Inverse_sub_macroblock_partition_scanning_process(H264_MB_TYPE m_name_of_mb_type, int32_t mbPartIdx, int32_t subMbPartIdx, int32_t &x, int32_t &y); //6.4.2.2
     int Derivation_process_of_the_availability_for_macroblock_addresses(int32_t mbAddr, int32_t &is_mbAddr_available); //6.4.8
     int Derivation_process_for_neighbouring_macroblock_addresses_and_their_availability_in_MBAFF_frames(int32_t CurrMbAddr, 
@@ -199,7 +199,7 @@ public:
 
     int Decoding_process_for_P_macroblocks_in_SP_slices_or_SI_macroblocks(); //8.6
 
-    //--------------Ö¡¼äÔ¤²â------------------------
+    //--------------Ö¡ï¿½ï¿½Ô¤ï¿½ï¿½------------------------
     int transform_decoding_process_for_4x4_luma_residual_blocks_inter(int32_t isChroma, int32_t isChromaCb, int32_t BitDepth, int32_t PicWidthInSamples, uint8_t *pic_buff);
     int transform_decoding_process_for_8x8_luma_residual_blocks_inter(int32_t isChroma, int32_t isChromaCb, int32_t BitDepth, int32_t PicWidthInSamples, 
         int32_t Level8x8[4][64], uint8_t *pic_buff);
@@ -278,10 +278,10 @@ public:
             int32_t &mbAddrN, int32_t &mbPartIdxN, int32_t &subMbPartIdxN); //6.4.11.7
     int Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(H264_MB_TYPE mb_type_, H264_MB_TYPE subMbType[4], int32_t xP, int32_t yP, int32_t &mbPartIdxN, int32_t &subMbPartIdxN); //6.4.13.4
 
-    int PicOrderCntFunc(CH264PictureBase *picX); //8.2.1 POC: picture order count Í¼ÏñÐòÁÐºÅ
+    int PicOrderCntFunc(CH264PictureBase *picX); //8.2.1 POC: picture order count Í¼ï¿½ï¿½ï¿½ï¿½ï¿½Ðºï¿½
     int DiffPicOrderCnt(CH264PictureBase *picA, CH264PictureBase *picB);
     
-    //--------------È¥·½¿é(»·Â·)ÂË²¨¹ý³Ì------------------------
+    //--------------È¥ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½Â·)ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½------------------------
     int Deblocking_filter_process(); //8.7
     int Filtering_process_for_block_edges(int32_t MbaffFrameFlag, int32_t _CurrMbAddr, int32_t mb_field_decoding_flag, int32_t chromaEdgeFlag, int32_t iCbCr, int32_t mbAddrN,
             int32_t verticalEdgeFlag, int32_t fieldModeInFrameFilteringFlag, int32_t leftMbEdgeFlag, int32_t (&E)[16][2]); //8.7.1
@@ -296,7 +296,7 @@ public:
          int32_t &filterSamplesFlag, int32_t &indexA, int32_t &alpha, int32_t &beta); //8.7.2.2
     int Filtering_process_for_edges_with_bS_less_than_4(const uint8_t (&p)[4], const uint8_t (&q)[4], int32_t chromaEdgeFlag, int32_t chromaStyleFilteringFlag, 
             int32_t bS, int32_t beta, int32_t indexA, uint8_t (&pp)[3], uint8_t (&qq)[3]); //8.7.2.3
-    int CH264PictureBase::Filtering_process_for_edges_for_bS_equal_to_4(const uint8_t (&p)[4], const uint8_t (&q)[4], int32_t chromaEdgeFlag, int32_t chromaStyleFilteringFlag, 
+    int Filtering_process_for_edges_for_bS_equal_to_4(const uint8_t (&p)[4], const uint8_t (&q)[4], int32_t chromaEdgeFlag, int32_t chromaStyleFilteringFlag, 
             int32_t alpha, int32_t beta, uint8_t (&pp)[3], uint8_t (&qq)[3]); //8.7.2.4
 };
 
