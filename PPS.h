@@ -30,7 +30,7 @@ public:
         return weighted_pred_flag_;
     }
 
-    bool weighted_bipred()
+    int weighted_bipred()
     {
         return weighted_bipred_idc_;
     }
