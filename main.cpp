@@ -31,7 +31,7 @@ int main(int argn, char** argv)
     std::shared_ptr<NalUnit::RbspData> rbsp;
     enum NalUnitType nal_unit_type;
 
-    int ctrl_num = 4;
+    int ctrl_num = 5;
 
     while ((nal = st->get_nal_unit())) {
         spdlog::warn("============= start new nal =============", nal->size());

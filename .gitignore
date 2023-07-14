@@ -32,3 +32,6 @@
 *.app
 main
 ffmpeg_test
+
+# pictures
+*.bmp
