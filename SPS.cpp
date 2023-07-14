@@ -151,6 +151,11 @@ int Sps::parse()
     max_num_ref_frames_ = rbsp_data_->read_ue();
     spdlog::warn("max_num_ref_frames {}", max_num_ref_frames_);
 
+    if (max_num_ref_frames_ == 0) {
+        spdlog::error("max_num_ref_frames is 0");
+        return -1;
+    }
+
     gaps_in_frame_num_value_allowed_flag_ = rbsp_data_->read_u1();
     if (gaps_in_frame_num_value_allowed_flag_)
         spdlog::warn("gaps is allowed in frame num");

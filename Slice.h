@@ -6,6 +6,35 @@
 
 class VideoDecoder;
 
+enum SliceType {
+    P = 0,
+    B,
+    I,
+    SP,
+    SI,
+    P_high,
+    B_high,
+    I_high,
+    SP_high,
+    SI_high
+};
+
+enum RefStatus {
+    NonRef = 0,
+    ShortTerm,
+    LongTerm
+};
+
+enum MemManCtrlOp {
+    EndLoop = 0,
+    ShortTermToNonRef, // 1
+    LongTermToNonRef, // 2
+    ShortTermToLongTerm, // 3
+    SetMaxLongTermAndPurge, // 4
+    MarkAllNonRef, // 5
+    CurToLongTerm // 6
+};
+
 class Slice {
 public:
     Slice() = default;
@@ -20,19 +49,6 @@ public:
     int parse_dec_ref_pic_marking();
 
     bool bottom_field_pic_order_in_frame_present();
-
-    enum SliceType {
-        P = 0,
-        B,
-        I,
-        SP,
-        SI,
-        P_high,
-        B_high,
-        I_high,
-        SP_high,
-        SI_high
-    };
 
     const char* slice_type_str(enum SliceType type)
     {
@@ -141,6 +157,16 @@ public:
         return 26 + pps_->pic_init_qs_minus26() + slice_qs_delta_;
     }
 
+    int FilterOffsetA()
+    {
+        return slice_alpha_c0_offset_div2_ << 1;
+    }
+
+    int FilterOffsetB()
+    {
+        return slice_beta_offset_div2_ << 1;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -181,8 +207,8 @@ private:
 
     // need more accurate initial value
     int disable_deblocking_filter_idc_ = 0;
-    int slice_alpha_c0_offset_div2_ = INT32_MIN;
-    int slice_beta_offset_div2_ = INT32_MIN;
+    int slice_alpha_c0_offset_div2_ = 0;
+    int slice_beta_offset_div2_ = 0;
 
     int ref_pic_list_modification_flag_l0_ = 0;
     int ref_pic_list_modification_flag_l1_ = 0;
@@ -194,6 +220,7 @@ private:
         long_term_reference_flag_ = 0,
         adaptive_ref_pic_marking_mode_flag_ = 0;
     std::vector<std::tuple<int, int, int>> memory_management_control_operation_list_;
+    int MaxLongTermFrameIdx_ = -1 /* no long-term frame indices */;
 
     int parse_single_ref_pic_list_modification(int idx);
     int parse_single_pred_weight_table(int idx);
@@ -217,4 +244,11 @@ private:
     bool is_frame_ = false,
          is_top_field_ = false,
          is_bottom_field_ = false;
+
+    RefStatus frame_ref_status_ = RefStatus::None,
+              top_field_ref_status_ = RefStatus::None,
+              bottom_field_ref_status_ = RefStatus::None;
+
+    bool has_mm_op_5_ = false;
+    int TopFieldOrderCnt_ = 0, BottomFieldOrderCnt_ = 0;
 };

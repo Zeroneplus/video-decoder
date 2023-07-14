@@ -198,8 +198,18 @@ int Slice::parse_dec_ref_pic_marking()
         no_output_of_prior_pics_flag_ = rbsp_data_->read_u1();
         spdlog::trace("no_output_of_prior_pics_flag {}", (bool)no_output_of_prior_pics_flag_);
 
+        if (no_output_of_prior_pics_flag_)
+            spdlog::error("no_output_of_prior_pics_flag is true, don't know how to handle this cases");
+
         long_term_reference_flag_ = rbsp_data_->read_u1();
         spdlog::trace("long_term_reference_flag {}", (bool)long_term_reference_flag_);
+
+        if (long_term_reference_flag_) {
+            spdlog::warn("this idr is set as long-term ref pic with long-term idx 0");
+            MaxLongTermFrameIdx_ = 0;
+        } else
+            spdlog::warn("this idr is set as short-term ref pic");
+
     } else {
         spdlog::trace("{}: this slice is a non-idr ref pic", __func__);
 
@@ -229,6 +239,8 @@ int Slice::parse_dec_ref_pic_marking()
                         max_long_term_frame_idx_plus1,
                         0);
                 } else if (memory_management_control_operation == 5) {
+                    spdlog::warn("has memory_management_control_operation 5, which may be not properly handled");
+                    has_mm_op_5_ = true;
                     memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
                         0,
                         0);
@@ -257,7 +269,7 @@ int Slice::parse_dec_ref_pic_marking()
 
 int Slice::parse_slice_header(VideoDecoder* decoder)
 {
-    spdlog::info("**********parse slice header**********");
+    spdlog::warn("**********parse slice header**********");
 
     first_mb_in_slice_ = rbsp_data_->read_ue();
     spdlog::info("first_mb_in_slice: {}", first_mb_in_slice_);
@@ -465,7 +477,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         return -1;
     }
 
-    spdlog::info("********end parse slice header********");
+    spdlog::warn("********end parse slice header********");
     return 0;
 }
 
@@ -535,4 +547,34 @@ void Slice::log_header()
     std::cout << space << "disable_deblocking_filter_idc " << disable_deblocking_filter_idc_ << std::endl;
     std::cout << space << "slice_alpha_c0_offset_div2 " << slice_alpha_c0_offset_div2_ << std::endl;
     std::cout << space << "slice_beta_offset_div2 " << slice_beta_offset_div2_ << std::endl;
+}
+
+std::pair<int, int> Slice::cal_poc_0(int prevPicOrderCntMsb, int prevPicOrderCntLsb)
+{
+    if (rbsp_data_->idr_pic_flag()) {
+        prevPicOrderCntMsb = 0;
+        prevPicOrderCntLsb = 0;
+    }
+
+    int MaxPicOrderCntLsb = sps_->MaxPicOrderCntLsb();
+    int PicOrderCntMsb = 0;
+
+    if ((pic_order_cnt_lsb_ < prevPicOrderCntLsb)
+        && ((prevPicOrderCntLsb - pic_order_cnt_lsb_) >= (MaxPicOrderCntLsb / 2)))
+        PicOrderCntMsb = prevPicOrderCntMsb + MaxPicOrderCntLsb;
+    else if ((pic_order_cnt_lsb_ > prevPicOrderCntLsb)
+        && ((pic_order_cnt_lsb_ - prevPicOrderCntLsb) > (MaxPicOrderCntLsb / 2)))
+        PicOrderCntMsb = prevPicOrderCntMsb - MaxPicOrderCntLsb;
+    else
+        PicOrderCntMsb = prevPicOrderCntMsb;
+
+    if (!is_bottom_field_)
+        TopFieldOrderCnt_ = PicOrderCntMsb + pic_order_cnt_lsb_;
+
+    if (!is_top_field_) {
+        if (!field_pic_flag_)
+            BottomFieldOrderCnt_ = TopFieldOrderCnt_ + delta_pic_order_cnt_bottom_;
+        else
+            BottomFieldOrderCnt_ = PicOrderCntMsb + pic_order_cnt_lsb_;
+    }
 }

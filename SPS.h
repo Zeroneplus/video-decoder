@@ -101,6 +101,7 @@ public:
     int PicWidthInMbs() { return PicWidthInMbs_; }
     int PicWidthInSamplesL() { return PicWidthInSamplesL_; }
     int MaxFrameNum() { return MaxFrameNum_; }
+    int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
 
 private:
     int ChromaArrayType_;
