@@ -38,6 +38,15 @@ public:
         return delta_pic_order_always_zero_flag_;
     }
 
+    int num_ref_frames_in_pic_order_cnt_cycle()
+    {
+        return num_ref_frames_in_pic_order_cnt_cycle_;
+    }
+
+    std::vector<int>& offset_for_ref_frame() { return offset_for_ref_frame_; }
+    int offset_for_non_ref_pic() { return offset_for_non_ref_pic_; }
+    int offset_for_top_to_bottom_field() { return offset_for_top_to_bottom_field_; }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* sps field */
@@ -102,6 +111,7 @@ public:
     int PicWidthInSamplesL() { return PicWidthInSamplesL_; }
     int MaxFrameNum() { return MaxFrameNum_; }
     int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
+    int ExpectedDeltaPerPicOrderCntCycle() { return ExpectedDeltaPerPicOrderCntCycle_; }
 
 private:
     int ChromaArrayType_;

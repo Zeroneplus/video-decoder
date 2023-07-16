@@ -151,10 +151,10 @@ int Slice::parse_single_ref_pic_list_modification(int idx)
     } while (modification_of_pic_nums_idc != 3);
 
     spdlog::trace("ref_pic_list_modification_{}:", idx);
-    if (list->size() > 0) {
-        for (int i = 0; i < list->size(); i++) {
+    if (!list->empty()) {
+        for (auto& entry : *list) {
             spdlog::trace("  modification_op {}, {}",
-                std::get<0>((*list)[i]), std::get<1>((*list)[i]));
+                std::get<0>(entry), std::get<1>(entry));
         }
     } else
         spdlog::trace("  null", idx);
@@ -549,32 +549,360 @@ void Slice::log_header()
     std::cout << space << "slice_beta_offset_div2 " << slice_beta_offset_div2_ << std::endl;
 }
 
-std::pair<int, int> Slice::cal_poc_0(int prevPicOrderCntMsb, int prevPicOrderCntLsb)
+void Slice::cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc)
 {
+    int prevPicOrderCntMsb = prev_ref_pic_poc.first,
+        prevPicOrderCntLsb = prev_ref_pic_poc.second;
+
     if (rbsp_data_->idr_pic_flag()) {
         prevPicOrderCntMsb = 0;
         prevPicOrderCntLsb = 0;
     }
 
     int MaxPicOrderCntLsb = sps_->MaxPicOrderCntLsb();
-    int PicOrderCntMsb = 0;
+    PicOrderCntMsb_ = 0;
 
     if ((pic_order_cnt_lsb_ < prevPicOrderCntLsb)
         && ((prevPicOrderCntLsb - pic_order_cnt_lsb_) >= (MaxPicOrderCntLsb / 2)))
-        PicOrderCntMsb = prevPicOrderCntMsb + MaxPicOrderCntLsb;
+        PicOrderCntMsb_ = prevPicOrderCntMsb + MaxPicOrderCntLsb;
     else if ((pic_order_cnt_lsb_ > prevPicOrderCntLsb)
         && ((pic_order_cnt_lsb_ - prevPicOrderCntLsb) > (MaxPicOrderCntLsb / 2)))
-        PicOrderCntMsb = prevPicOrderCntMsb - MaxPicOrderCntLsb;
+        PicOrderCntMsb_ = prevPicOrderCntMsb - MaxPicOrderCntLsb;
     else
-        PicOrderCntMsb = prevPicOrderCntMsb;
+        PicOrderCntMsb_ = prevPicOrderCntMsb;
 
     if (!is_bottom_field_)
-        TopFieldOrderCnt_ = PicOrderCntMsb + pic_order_cnt_lsb_;
+        TopFieldOrderCnt_ = PicOrderCntMsb_ + pic_order_cnt_lsb_;
 
     if (!is_top_field_) {
         if (!field_pic_flag_)
             BottomFieldOrderCnt_ = TopFieldOrderCnt_ + delta_pic_order_cnt_bottom_;
         else
-            BottomFieldOrderCnt_ = PicOrderCntMsb + pic_order_cnt_lsb_;
+            BottomFieldOrderCnt_ = PicOrderCntMsb_ + pic_order_cnt_lsb_;
     }
+}
+
+// TODO: when should we update this?
+// after decode ref pic marking?
+void Slice::update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc)
+{
+    if (rbsp_data_->nal_ref_idc()) {
+        if (has_mm_op_5_) {
+            // poc should already minus tmppoc
+            if (!is_bottom_field_) {
+                prev_ref_pic_poc.first = 0;
+                prev_ref_pic_poc.second = TopFieldOrderCnt_;
+            } else {
+                prev_ref_pic_poc.first = 0;
+                prev_ref_pic_poc.second = 0;
+            }
+        } else {
+            prev_ref_pic_poc.first = PicOrderCntMsb_;
+            prev_ref_pic_poc.second = pic_order_cnt_lsb_;
+        }
+    } else
+        spdlog::error("update_pre_poc_0 from a non ref pic");
+}
+
+void Slice::cal_poc_1(const std::pair<int, int>& prev_frame_num)
+{
+    int prevFrameNum = prev_frame_num.first,
+        prevFrameNumOffset = prev_frame_num.second;
+
+    int MaxFrameNum = sps_->MaxFrameNum();
+    int absFrameNum = 0;
+    int num_ref_frames_in_pic_order_cnt_cycle = sps_->num_ref_frames_in_pic_order_cnt_cycle();
+    int picOrderCntCycleCnt, frameNumInPicOrderCntCycle;
+    int expectedPicOrderCnt;
+    int ExpectedDeltaPerPicOrderCntCycle = sps_->ExpectedDeltaPerPicOrderCntCycle();
+    std::vector<int>& offset_for_ref_frame = sps_->offset_for_ref_frame();
+    int offset_for_non_ref_pic = sps_->offset_for_non_ref_pic();
+    int offset_for_top_to_bottom_field = sps_->offset_for_top_to_bottom_field();
+
+    if (rbsp_data_->idr_pic_flag())
+        FrameNumOffset_ = 0;
+    else if (prevFrameNum > frame_num_)
+        FrameNumOffset_ = prevFrameNumOffset + MaxFrameNum;
+    else
+        FrameNumOffset_ = prevFrameNumOffset;
+
+    if (num_ref_frames_in_pic_order_cnt_cycle != 0)
+        absFrameNum = FrameNumOffset_ + frame_num_;
+    else
+        absFrameNum = 0;
+
+    // if not ref frame, go back to the ref frame
+    if (rbsp_data_->nal_ref_idc() == 0 && absFrameNum > 0)
+        absFrameNum = absFrameNum - 1;
+
+    if (absFrameNum > 0) {
+        picOrderCntCycleCnt = (absFrameNum - 1) / num_ref_frames_in_pic_order_cnt_cycle;
+        frameNumInPicOrderCntCycle = (absFrameNum - 1) % num_ref_frames_in_pic_order_cnt_cycle;
+
+        expectedPicOrderCnt = picOrderCntCycleCnt * ExpectedDeltaPerPicOrderCntCycle;
+        for (int i = 0; i <= frameNumInPicOrderCntCycle; i++)
+            expectedPicOrderCnt = expectedPicOrderCnt + offset_for_ref_frame[i];
+    } else {
+        expectedPicOrderCnt = 0;
+    }
+
+    if (rbsp_data_->nal_ref_idc() == 0)
+        expectedPicOrderCnt = expectedPicOrderCnt + offset_for_non_ref_pic;
+
+    if (!field_pic_flag_) {
+        TopFieldOrderCnt_ = expectedPicOrderCnt + delta_pic_order_cnt_0_;
+        BottomFieldOrderCnt_ = TopFieldOrderCnt_ + offset_for_top_to_bottom_field + delta_pic_order_cnt_1_;
+
+    } else if (!bottom_field_flag_)
+        TopFieldOrderCnt_ = expectedPicOrderCnt + delta_pic_order_cnt_0_;
+    else
+        BottomFieldOrderCnt_ = expectedPicOrderCnt + offset_for_top_to_bottom_field + delta_pic_order_cnt_1_;
+}
+
+// every time when decode a slice, we should update prev_frame_num
+void Slice::update_prev_frame_num_1_or_2(std::pair<int, int>& prev_frame_num)
+{
+    prev_frame_num.first = frame_num_;
+    if (has_mm_op_5_)
+        prev_frame_num.second = 0;
+    else
+        prev_frame_num.second = FrameNumOffset_;
+}
+
+void Slice::cal_poc_2(const std::pair<int, int>& prev_frame_num)
+{
+    int prevFrameNum = prev_frame_num.first,
+        prevFrameNumOffset = prev_frame_num.second;
+    int MaxFrameNum = sps_->MaxFrameNum();
+    int tempPicOrderCnt;
+
+    if (rbsp_data_->idr_pic_flag())
+        FrameNumOffset_ = 0;
+    else if (prevFrameNum > frame_num_)
+        FrameNumOffset_ = prevFrameNumOffset + MaxFrameNum;
+    else
+        FrameNumOffset_ = prevFrameNumOffset;
+
+    if (rbsp_data_->idr_pic_flag())
+        tempPicOrderCnt = 0;
+    else if (rbsp_data_->nal_ref_idc() == 0)
+        tempPicOrderCnt = 2 * (FrameNumOffset_ + frame_num_) - 1;
+    else
+        tempPicOrderCnt = 2 * (FrameNumOffset_ + frame_num_);
+
+    if (!field_pic_flag_) {
+        TopFieldOrderCnt_ = tempPicOrderCnt;
+        BottomFieldOrderCnt_ = tempPicOrderCnt;
+    } else if (bottom_field_flag_)
+        BottomFieldOrderCnt_ = tempPicOrderCnt;
+    else
+        TopFieldOrderCnt_ = tempPicOrderCnt;
+}
+
+bool Slice::at_least_one_short_term_ref()
+{
+    return frame_ref_status_ == RefStatus::ShortTerm
+        || top_field_ref_status_ == RefStatus::ShortTerm
+        || bottom_field_ref_status_ == RefStatus::ShortTerm;
+}
+
+bool Slice::at_least_one_long_term_ref()
+{
+    return frame_ref_status_ == RefStatus::LongTerm
+        || top_field_ref_status_ == RefStatus::LongTerm
+        || bottom_field_ref_status_ == RefStatus::LongTerm;
+}
+
+bool Slice::at_least_one_ref()
+{
+    return at_least_one_short_term_ref() || at_least_one_long_term_ref();
+}
+
+bool Slice::check_ref_status()
+{
+    // a frame cannot have a field in short term ,and another in long term
+
+    if (frame_ref_status_ == RefStatus::ShortTerm
+        && top_field_ref_status_ == RefStatus::ShortTerm
+        && bottom_field_ref_status_ == RefStatus::ShortTerm)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::LongTerm
+        && top_field_ref_status_ == RefStatus::LongTerm
+        && bottom_field_ref_status_ == RefStatus::LongTerm)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::NonRef
+        && top_field_ref_status_ == RefStatus::ShortTerm
+        && bottom_field_ref_status_ == RefStatus::NonRef)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::NonRef
+        && top_field_ref_status_ == RefStatus::NonRef
+        && bottom_field_ref_status_ == RefStatus::ShortTerm)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::NonRef
+        && top_field_ref_status_ == RefStatus::LongTerm
+        && bottom_field_ref_status_ == RefStatus::NonRef)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::NonRef
+        && top_field_ref_status_ == RefStatus::NonRef
+        && bottom_field_ref_status_ == RefStatus::LongTerm)
+        return true;
+
+    if (frame_ref_status_ == RefStatus::NonRef
+        && top_field_ref_status_ == RefStatus::NonRef
+        && bottom_field_ref_status_ == RefStatus::NonRef)
+        return true;
+
+    return false;
+}
+
+int Slice::decoding_process_for_picture_numbers(std::shared_ptr<Slice> current_slice)
+{
+    int FrameNum = frame_num_;
+    int frame_num = current_slice->FrameNum();
+    int MaxFrameNum = sps_->MaxFrameNum();
+
+    int FrameNumWrap;
+
+    int PicNum_Or_LongTermPicNum;
+
+    bool field_pic_flag = current_slice->field_pic_flag();
+    bool bottom_field_flag = current_slice->bottom_field_flag();
+
+    if (current_slice->slice_field_frame_type() != SliceFieldFrameType::Frame
+        || slice_field_frame_type() != SliceFieldFrameType::Frame) {
+        spdlog::error("only frame or MBAFF mode is supported");
+        assert(false);
+    }
+
+    // we do not distinguish between frame or field
+    // for a ShortTerm-ref frame(with frame_ref_status_ = ShortTerm,
+    // top_field_ref_status_ = ShortTerm, bottom_field_ref_status_ = ShortTerm),
+    // if one of its field is marked as NonRef (for example, the top field),
+    // then frame_ref_status_ is NonRef, top_field_ref_status_ is NonRef,
+    // but bottom_field_ref_status_ is still ShortTerm
+    if (at_least_one_short_term_ref()) {
+        if (FrameNum > frame_num)
+            FrameNumWrap = FrameNum - MaxFrameNum;
+        else
+            FrameNumWrap = FrameNum;
+    }
+
+    if (!field_pic_flag) {
+        if (at_least_one_short_term_ref()) {
+            // short term and long term are mutual-exclusive
+            PicNum_Or_LongTermPicNum = FrameNumWrap;
+        } else
+            PicNum_Or_LongTermPicNum = LongTermFrameIdx_;
+    } else {
+        // TODO
+    }
+
+    return PicNum_Or_LongTermPicNum;
+}
+
+// TODO: how to handle complementary field pair?
+int Slice::PicOrderCnt()
+{
+    int poc = -1;
+    if (is_frame_)
+        poc = std::min(TopFieldOrderCnt_, BottomFieldOrderCnt_);
+    else if (is_top_field_)
+        poc = TopFieldOrderCnt_;
+    else if (is_top_field_)
+        poc = BottomFieldOrderCnt_;
+    return poc;
+}
+
+int Slice::PicOrderCntOrLongTermPicNum()
+{
+    if (at_least_one_short_term_ref())
+        return PicOrderCnt();
+    else
+        return LongTermFrameIdx_; // TODO PAFF mode may have problems here
+}
+
+void Slice::set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0)
+{
+    ref_list_P_0_ = std::move(ref_list_P_0);
+}
+
+void Slice::set_ref_list_B(
+    std::pair<std::vector<std::tuple<int, std::shared_ptr<Slice>>>, std::vector<std::tuple<int, std::shared_ptr<Slice>>>> ref_list_B_pair)
+{
+    ref_list_B_0_ = std::move(ref_list_B_pair.first);
+    ref_list_B_1_ = std::move(ref_list_B_pair.second);
+}
+
+void Slice::modification_process_for_reference_picture_lists()
+{
+
+    if (ref_pic_list_modification_flag_l0_) {
+        int refIdxL0 = 0;
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>* ref_list_0_ptr;
+        if (is_B_slice())
+            ref_list_0_ptr = &ref_list_B_0_;
+        else
+            ref_list_0_ptr = &ref_list_P_0_;
+        auto& ref_list_0 = *ref_list_0_ptr;
+
+        for (auto& [modification_of_pic_nums_idc, pic_num] : ref_pic_list_modification_l0_) {
+            if (modification_of_pic_nums_idc == 0 || modification_of_pic_nums_idc == 1)
+                refIdxL0 = modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
+                    refIdxL0, ref_list_0, picNumL0Pred_,
+                    modification_of_pic_nums_idc,
+                    pic_num);
+            else
+                refIdxL0 = modification_process_of_reference_picture_lists_for_long_term_reference_pictures(refIdxL0,
+                    ref_list_0,
+                    pic_num);
+        }
+    }
+
+    if (ref_pic_list_modification_flag_l1_) {
+        int refIdxL1 = 0;
+        auto& ref_list_1 = ref_list_B_1_;
+        for (auto& [modification_of_pic_nums_idc, pic_num] : ref_pic_list_modification_l1_) {
+            if (modification_of_pic_nums_idc == 0 || modification_of_pic_nums_idc == 1)
+                refIdxL1 = modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
+                    refIdxL1, ref_list_1, picNumL1Pred_,
+                    modification_of_pic_nums_idc,
+                    pic_num);
+            else
+                refIdxL1 = modification_process_of_reference_picture_lists_for_long_term_reference_pictures(
+                    refIdxL1,
+                    ref_list_1,
+                    pic_num);
+        }
+    }
+}
+
+int Slice::modification_process_of_reference_picture_lists_for_short_term_reference_pictures(int refIdxLx,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+    int& picNumLXPred,
+    int modification_of_pic_nums_idc,
+    int abs_diff_pic_num_minus1)
+{
+    int picNumLXNoWrap;
+    if (picNumLXPred == INT32_MIN)
+        picNumLXPred = if (modification_of_pic_nums_idc == 0)
+        {
+            if ()
+        }
+    else {
+    }
+
+    return 0;
+}
+
+int Slice::modification_process_of_reference_picture_lists_for_long_term_reference_pictures(int refIdxLx,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+    int long_term_pic_num)
+{
+
+    return 0;
 }

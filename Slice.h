@@ -35,11 +35,20 @@ enum MemManCtrlOp {
     CurToLongTerm // 6
 };
 
+enum SliceFieldFrameType {
+    Unknown,
+    Frame,
+    TopField,
+    BottomField
+};
+
 class Slice {
 public:
     Slice() = default;
     Slice(std::shared_ptr<NalUnit::RbspData> rbsp);
     int parse_slice_header(VideoDecoder* decoder);
+
+    int parse_slice_data(VideoDecoder* decoder);
 
     void log();
     void log_header();
@@ -49,6 +58,18 @@ public:
     int parse_dec_ref_pic_marking();
 
     bool bottom_field_pic_order_in_frame_present();
+
+    enum SliceFieldFrameType slice_field_frame_type()
+    {
+        if (is_frame_)
+            return SliceFieldFrameType::Frame;
+        else if (is_top_field_)
+            return SliceFieldFrameType::TopField;
+        else if (is_bottom_field_)
+            return SliceFieldFrameType::BottomField;
+        else
+            return SliceFieldFrameType::Unknown;
+    }
 
     const char* slice_type_str(enum SliceType type)
     {
@@ -167,6 +188,60 @@ public:
         return slice_beta_offset_div2_ << 1;
     }
 
+    bool field_pic_flag()
+    {
+        return field_pic_flag_;
+    }
+
+    bool bottom_field_flag()
+    {
+        return bottom_field_flag_;
+    }
+
+    // cal poc
+    void cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc);
+
+    void update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc);
+
+    void cal_poc_1(const std::pair<int, int>& prev_frame_num);
+
+    void update_prev_frame_num_1_or_2(std::pair<int, int>& prev_frame_num);
+
+    void cal_poc_2(const std::pair<int, int>& prev_frame_num);
+
+    void re_cal_poc_when_has_mm5();
+
+    bool at_least_one_short_term_ref();
+
+    bool at_least_one_long_term_ref();
+
+    bool at_least_one_ref();
+
+    bool check_ref_status();
+
+    // ref pic list construct
+    int decoding_process_for_picture_numbers(std::shared_ptr<Slice> current_slice);
+    int PicOrderCnt();
+
+    int PicOrderCntOrLongTermPicNum();
+    void set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0);
+    void set_ref_list_B(std::pair<
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>>
+            ref_list_B_pair);
+
+    void modification_process_for_reference_picture_lists();
+
+    int modification_process_of_reference_picture_lists_for_short_term_reference_pictures(int refIdxLx,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+        int& picNumLXPred,
+        int modification_of_pic_nums_idc,
+        int abs_diff_pic_num_minus1);
+
+    int modification_process_of_reference_picture_lists_for_long_term_reference_pictures(int refIdxLx,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+        int long_term_pic_num);
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -186,6 +261,7 @@ private:
 
     int pic_order_cnt_lsb_ = INT32_MIN;
     int delta_pic_order_cnt_bottom_ = 0;
+
     int delta_pic_order_cnt_0_ = 0;
     int delta_pic_order_cnt_1_ = 0;
 
@@ -245,10 +321,20 @@ private:
          is_top_field_ = false,
          is_bottom_field_ = false;
 
-    RefStatus frame_ref_status_ = RefStatus::None,
-              top_field_ref_status_ = RefStatus::None,
-              bottom_field_ref_status_ = RefStatus::None;
+    RefStatus frame_ref_status_ = RefStatus::NonRef,
+              top_field_ref_status_ = RefStatus::NonRef,
+              bottom_field_ref_status_ = RefStatus::NonRef;
 
     bool has_mm_op_5_ = false;
     int TopFieldOrderCnt_ = 0, BottomFieldOrderCnt_ = 0;
+
+    int PicOrderCntMsb_ = 0;
+    int FrameNumOffset_ = 0;
+
+    // ref pic list construct
+    int LongTermFrameIdx_ = 0;
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0_,
+        ref_list_B_0_,
+        ref_list_B_1_;
+    int picNumL0Pred_ = -1, picNumL1Pred_ = -1;
 };
