@@ -36,10 +36,10 @@ int main(int argn, char** argv)
     while ((nal = st->get_nal_unit())) {
         spdlog::warn("============= start new nal =============", nal->size());
 
-        spdlog::trace("The size of split nal is {}", nal->size());
+        // spdlog::trace("The size of split nal is {}", nal->size());
 
         rbsp = nal->parse();
-        spdlog::trace("The size of rbsp from nal is {}", rbsp->size());
+        // spdlog::trace("The size of rbsp from nal is {}", rbsp->size());
 
         rbsp->parse_nal_header();
         nal_unit_type = rbsp->nal_unit_type();

@@ -37,6 +37,18 @@ public:
 
     void reference_picture_lists_construction(std::shared_ptr<Slice> current_slice);
 
+    std::pair<int, int>& prev_ref_pic_poc()
+    {
+        return prev_ref_pic_poc_;
+    }
+
+    std::pair<int, int>& prev_frame_num()
+    {
+        return prev_frame_num_;
+    }
+
+    void decoded_reference_picture_marking_process(std::shared_ptr<Slice> current_slice);
+
 private:
     std::map<uint32_t, std::shared_ptr<Sps>> sps_map;
     std::map<uint32_t, std::shared_ptr<Pps>> pps_map;
@@ -57,5 +69,6 @@ private:
         std::vector<std::tuple<int, std::shared_ptr<Slice>>>>
     initialisation_process_for_reference_picture_lists_for_B_slices_in_frames(
         int current_poc,
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list_with_POC_or_LongTermPicNum);
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list_with_POC_or_LongTermPicNum,
+        std::shared_ptr<Slice> current_slice);
 };

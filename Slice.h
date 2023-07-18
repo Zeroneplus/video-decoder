@@ -118,6 +118,11 @@ public:
         return (slice_type_enum_ == SliceType::SI) || (slice_type_enum_ == SliceType::SI_high);
     }
 
+    bool is_reference_slice()
+    {
+        return rbsp_data_->nal_ref_idc() != 0;
+    }
+
     bool MbaffFrameFlag()
     {
         return !field_pic_flag_ && sps_->MbaffFlag();
@@ -198,7 +203,11 @@ public:
         return bottom_field_flag_;
     }
 
-    // cal poc
+    /* Decoding process for picture order count
+     * POC is decoded for every slice
+     */
+    void cal_poc(VideoDecoder* dec);
+
     void cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc);
 
     void update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc);
@@ -220,26 +229,35 @@ public:
     bool check_ref_status();
 
     // ref pic list construct
+    /* pic num is calculated for every ref pic
+     */
     int decoding_process_for_picture_numbers(std::shared_ptr<Slice> current_slice);
     int PicOrderCnt();
 
     int PicOrderCntOrLongTermPicNum();
     void set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0);
-    void set_ref_list_B(std::pair<
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>,
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>>
+    void set_ref_list_B(
+        std::pair<
+            std::vector<std::tuple<int, std::shared_ptr<Slice>>>,
+            std::vector<std::tuple<int, std::shared_ptr<Slice>>>>
             ref_list_B_pair);
 
     void modification_process_for_reference_picture_lists();
 
-    int modification_process_of_reference_picture_lists_for_short_term_reference_pictures(int refIdxLx,
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+    int modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
+        int refIdxLX,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX_init,
         int& picNumLXPred,
+        int num_ref_idx_lX_active_minus1,
         int modification_of_pic_nums_idc,
         int abs_diff_pic_num_minus1);
 
-    int modification_process_of_reference_picture_lists_for_long_term_reference_pictures(int refIdxLx,
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+    int modification_process_of_reference_picture_lists_for_long_term_reference_pictures(
+        int refIdxLX,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX_init,
+        int num_ref_idx_lX_active_minus1,
         int long_term_pic_num);
 
 private:
@@ -333,8 +351,12 @@ private:
 
     // ref pic list construct
     int LongTermFrameIdx_ = 0;
-    std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0_,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>
+        ref_list_P_0_,
         ref_list_B_0_,
-        ref_list_B_1_;
-    int picNumL0Pred_ = -1, picNumL1Pred_ = -1;
+        ref_list_B_1_,
+        ref_list_P_0_init_,
+        ref_list_B_0_init_,
+        ref_list_B_1_init_;
+    int picNumL0Pred_ = INT32_MIN, picNumL1Pred_ = INT32_MIN;
 };

@@ -35,3 +35,6 @@ ffmpeg_test
 
 # pictures
 *.bmp
+
+# misc
+make_format_test.cpp

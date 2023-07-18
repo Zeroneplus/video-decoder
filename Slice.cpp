@@ -549,10 +549,27 @@ void Slice::log_header()
     std::cout << space << "slice_beta_offset_div2 " << slice_beta_offset_div2_ << std::endl;
 }
 
+void Slice::cal_poc(VideoDecoder* dec)
+{
+    switch (sps_->pic_order_cnt_type()) {
+    case 0: {
+        cal_poc_0(dec->prev_ref_pic_poc());
+    }
+    case 1: {
+        cal_poc_1(dec->prev_frame_num());
+    }
+    case 2: {
+        cal_poc_2(dec->prev_frame_num());
+    }
+    default:
+        assert(false);
+    }
+}
+
 void Slice::cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc)
 {
-    int prevPicOrderCntMsb = prev_ref_pic_poc.first,
-        prevPicOrderCntLsb = prev_ref_pic_poc.second;
+    // value copy
+    auto [prevPicOrderCntMsb, prevPicOrderCntLsb] = prev_ref_pic_poc;
 
     if (rbsp_data_->idr_pic_flag()) {
         prevPicOrderCntMsb = 0;
@@ -560,7 +577,6 @@ void Slice::cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc)
     }
 
     int MaxPicOrderCntLsb = sps_->MaxPicOrderCntLsb();
-    PicOrderCntMsb_ = 0;
 
     if ((pic_order_cnt_lsb_ < prevPicOrderCntLsb)
         && ((prevPicOrderCntLsb - pic_order_cnt_lsb_) >= (MaxPicOrderCntLsb / 2)))
@@ -586,19 +602,22 @@ void Slice::cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc)
 // after decode ref pic marking?
 void Slice::update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc)
 {
+    // value ref
+    auto& [prevPicOrderCntMsb, prevPicOrderCntLsb] = prev_ref_pic_poc;
+
     if (rbsp_data_->nal_ref_idc()) {
         if (has_mm_op_5_) {
-            // poc should already minus tmppoc
+            // poc should already minus tmp_poc
             if (!is_bottom_field_) {
-                prev_ref_pic_poc.first = 0;
-                prev_ref_pic_poc.second = TopFieldOrderCnt_;
+                prevPicOrderCntMsb = 0;
+                prevPicOrderCntLsb = TopFieldOrderCnt_;
             } else {
-                prev_ref_pic_poc.first = 0;
-                prev_ref_pic_poc.second = 0;
+                prevPicOrderCntMsb = 0;
+                prevPicOrderCntLsb = 0;
             }
         } else {
-            prev_ref_pic_poc.first = PicOrderCntMsb_;
-            prev_ref_pic_poc.second = pic_order_cnt_lsb_;
+            prevPicOrderCntMsb = PicOrderCntMsb_;
+            prevPicOrderCntLsb = pic_order_cnt_lsb_;
         }
     } else
         spdlog::error("update_pre_poc_0 from a non ref pic");
@@ -606,8 +625,8 @@ void Slice::update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc)
 
 void Slice::cal_poc_1(const std::pair<int, int>& prev_frame_num)
 {
-    int prevFrameNum = prev_frame_num.first,
-        prevFrameNumOffset = prev_frame_num.second;
+    // value copy
+    auto [prevFrameNum, prevFrameNumOffset] = prev_frame_num;
 
     int MaxFrameNum = sps_->MaxFrameNum();
     int absFrameNum = 0;
@@ -662,17 +681,21 @@ void Slice::cal_poc_1(const std::pair<int, int>& prev_frame_num)
 // every time when decode a slice, we should update prev_frame_num
 void Slice::update_prev_frame_num_1_or_2(std::pair<int, int>& prev_frame_num)
 {
-    prev_frame_num.first = frame_num_;
+    // value ref
+    auto& [prevFrameNum, prevFrameNumOffset] = prev_frame_num;
+
+    prevFrameNum = frame_num_;
     if (has_mm_op_5_)
-        prev_frame_num.second = 0;
+        prevFrameNumOffset = 0;
     else
-        prev_frame_num.second = FrameNumOffset_;
+        prevFrameNumOffset = FrameNumOffset_;
 }
 
 void Slice::cal_poc_2(const std::pair<int, int>& prev_frame_num)
 {
-    int prevFrameNum = prev_frame_num.first,
-        prevFrameNumOffset = prev_frame_num.second;
+    // value copy
+    auto [prevFrameNum, prevFrameNumOffset] = prev_frame_num;
+
     int MaxFrameNum = sps_->MaxFrameNum();
     int tempPicOrderCnt;
 
@@ -715,12 +738,13 @@ bool Slice::at_least_one_long_term_ref()
 
 bool Slice::at_least_one_ref()
 {
-    return at_least_one_short_term_ref() || at_least_one_long_term_ref();
+    return (at_least_one_short_term_ref() && !at_least_one_long_term_ref())
+        || (!at_least_one_short_term_ref() && at_least_one_long_term_ref());
 }
 
 bool Slice::check_ref_status()
 {
-    // a frame cannot have a field in short term ,and another in long term
+    // a frame cannot have a field in short term, and another in long term
 
     if (frame_ref_status_ == RefStatus::ShortTerm
         && top_field_ref_status_ == RefStatus::ShortTerm
@@ -828,81 +852,261 @@ int Slice::PicOrderCntOrLongTermPicNum()
 
 void Slice::set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0)
 {
-    ref_list_P_0_ = std::move(ref_list_P_0);
+    ref_list_P_0_init_ = std::move(ref_list_P_0);
+
+    ref_list_P_0_.insert(ref_list_P_0_.end(), ref_list_P_0_init_.begin(), ref_list_P_0_init_.end());
+
+    // update the ref list by num_ref_idx_l0_active_minus1
+    // if size() > num_ref_idx_l0_active_minus1() + 1, shrink
+    // else, insert default initialized item, which is std::tuple<int, std::shared_ptr<Slice>>>{}
+    ref_list_P_0_.resize(num_ref_idx_l0_active_minus1() + 1);
+
+    // add a dummy entry for ref pic list modification
+    ref_list_P_0_.push_back({});
 }
 
 void Slice::set_ref_list_B(
-    std::pair<std::vector<std::tuple<int, std::shared_ptr<Slice>>>, std::vector<std::tuple<int, std::shared_ptr<Slice>>>> ref_list_B_pair)
+    std::pair<std::vector<std::tuple<int, std::shared_ptr<Slice>>>,
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>>
+        ref_list_B_pair)
 {
-    ref_list_B_0_ = std::move(ref_list_B_pair.first);
-    ref_list_B_1_ = std::move(ref_list_B_pair.second);
+    ref_list_B_0_init_ = std::move(ref_list_B_pair.first);
+    ref_list_B_1_init_ = std::move(ref_list_B_pair.second);
+
+    // for list 0
+    ref_list_B_0_.insert(ref_list_B_0_.end(), ref_list_B_0_init_.begin(), ref_list_B_0_init_.end());
+
+    // update the ref list by num_ref_idx_l0_active_minus1
+    ref_list_B_0_.resize(num_ref_idx_l0_active_minus1() + 1);
+
+    // add a dummy entry for modification
+    ref_list_B_0_.push_back({});
+
+    // for list 1
+    ref_list_B_1_.insert(ref_list_B_1_.end(), ref_list_B_1_init_.begin(), ref_list_B_1_init_.end());
+
+    // update the ref list by num_ref_idx_l1_active_minus1
+    ref_list_B_1_.resize(num_ref_idx_l1_active_minus1() + 1);
+
+    // add a dummy entry for modification
+    ref_list_B_1_.push_back({});
 }
 
 void Slice::modification_process_for_reference_picture_lists()
 {
-
     if (ref_pic_list_modification_flag_l0_) {
         int refIdxL0 = 0;
-        std::vector<std::tuple<int, std::shared_ptr<Slice>>>* ref_list_0_ptr;
-        if (is_B_slice())
+        std::vector<std::tuple<int, std::shared_ptr<Slice>>>*ref_list_0_ptr, *ref_list_0_init_ptr;
+        if (is_B_slice()) {
+            ref_list_0_init_ptr = &ref_list_B_0_init_;
             ref_list_0_ptr = &ref_list_B_0_;
-        else
+        } else {
+            ref_list_0_init_ptr = &ref_list_P_0_init_;
             ref_list_0_ptr = &ref_list_P_0_;
+        }
         auto& ref_list_0 = *ref_list_0_ptr;
+        auto& ref_list_0_init = *ref_list_0_init_ptr;
 
         for (auto& [modification_of_pic_nums_idc, pic_num] : ref_pic_list_modification_l0_) {
             if (modification_of_pic_nums_idc == 0 || modification_of_pic_nums_idc == 1)
                 refIdxL0 = modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
-                    refIdxL0, ref_list_0, picNumL0Pred_,
+                    refIdxL0,
+                    ref_list_0,
+                    ref_list_0_init,
+                    picNumL0Pred_,
+                    num_ref_idx_l0_active_minus1(),
                     modification_of_pic_nums_idc,
                     pic_num);
             else
-                refIdxL0 = modification_process_of_reference_picture_lists_for_long_term_reference_pictures(refIdxL0,
+                refIdxL0 = modification_process_of_reference_picture_lists_for_long_term_reference_pictures(
+                    refIdxL0,
                     ref_list_0,
+                    ref_list_0_init,
+                    num_ref_idx_l0_active_minus1(),
                     pic_num);
         }
+    }
+
+    auto ref_pic_log = [](const char* message, const char* str, const std::vector<std::tuple<int, std::shared_ptr<Slice>>>& value) {
+        spdlog::debug(message);
+        for (auto& [pic_num, ref_slice] : value) {
+            spdlog::debug("  %s %d", str, pic_num);
+        }
+    };
+
+    auto check_ref_pic_list = [](const std::vector<std::tuple<int, std::shared_ptr<Slice>>>& value) {
+        for (auto& [pic_num, ref_slice] : value) {
+            if (!ref_slice) {
+                spdlog::error("after ref pic modification, ref slice is null");
+                assert(false);
+            }
+        }
+    };
+
+    // check ref pic list 0 status
+    // after modification, there should not any 'non-exsiting' ref pic
+    if (is_B_slice()) {
+        ref_list_B_0_.pop_back(); // remove dummy element
+
+        check_ref_pic_list(ref_list_B_0_);
+
+        ref_pic_log("ref list B 0:", "poc or long-term picnum", ref_list_B_0_);
+
+    } else {
+        ref_list_P_0_.pop_back(); // remove dummy element
+
+        check_ref_pic_list(ref_list_P_0_);
+
+        ref_pic_log("ref list P 0:", "short-term or long-term picnum", ref_list_P_0_);
     }
 
     if (ref_pic_list_modification_flag_l1_) {
         int refIdxL1 = 0;
         auto& ref_list_1 = ref_list_B_1_;
+        auto& ref_list_1_init = ref_list_B_1_init_;
         for (auto& [modification_of_pic_nums_idc, pic_num] : ref_pic_list_modification_l1_) {
             if (modification_of_pic_nums_idc == 0 || modification_of_pic_nums_idc == 1)
                 refIdxL1 = modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
-                    refIdxL1, ref_list_1, picNumL1Pred_,
+                    refIdxL1,
+                    ref_list_1,
+                    ref_list_1_init,
+                    picNumL1Pred_,
+                    num_ref_idx_l1_active_minus1(),
                     modification_of_pic_nums_idc,
                     pic_num);
             else
                 refIdxL1 = modification_process_of_reference_picture_lists_for_long_term_reference_pictures(
                     refIdxL1,
                     ref_list_1,
+                    ref_list_1_init,
+                    num_ref_idx_l1_active_minus1(),
                     pic_num);
         }
     }
+
+    // check ref pic list 1 status
+    if (is_B_slice()) {
+        ref_list_B_1_.pop_back(); // remove dummy element
+
+        check_ref_pic_list(ref_list_B_1_);
+
+        ref_pic_log("ref list B 1:", "poc or long-term picnum", ref_list_B_1_);
+    }
 }
 
-int Slice::modification_process_of_reference_picture_lists_for_short_term_reference_pictures(int refIdxLx,
-    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+// only update first num_ref_idx_lX_active_minus1 element?
+int Slice::modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
+    int refIdxLX,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX_init,
     int& picNumLXPred,
+    int num_ref_idx_lX_active_minus1,
     int modification_of_pic_nums_idc,
     int abs_diff_pic_num_minus1)
 {
-    int picNumLXNoWrap;
+    int picNumLXNoWrap, picNumLX;
+
+    // if first time, init picNumLXPred to CurrPicNum()
     if (picNumLXPred == INT32_MIN)
-        picNumLXPred = if (modification_of_pic_nums_idc == 0)
-        {
-            if ()
-        }
-    else {
+        picNumLXPred = CurrPicNum();
+
+    if (modification_of_pic_nums_idc == 0) {
+        if (picNumLXPred - (abs_diff_pic_num_minus1 + 1) < 0)
+            picNumLXNoWrap = picNumLXPred - (abs_diff_pic_num_minus1 + 1) + MaxPicNum();
+        else
+            picNumLXNoWrap = picNumLXPred - (abs_diff_pic_num_minus1 + 1);
+    } else {
+        if (picNumLXPred + (abs_diff_pic_num_minus1 + 1) >= MaxPicNum())
+            picNumLXNoWrap = picNumLXPred + (abs_diff_pic_num_minus1 + 1) - MaxPicNum();
+        else
+            picNumLXNoWrap = picNumLXPred + (abs_diff_pic_num_minus1 + 1);
     }
 
-    return 0;
+    // update picNumLXPred
+    picNumLXPred = picNumLXNoWrap;
+
+    if (picNumLXNoWrap > CurrPicNum())
+        picNumLX = picNumLXNoWrap - MaxPicNum();
+    else
+        picNumLX = picNumLXNoWrap;
+
+    // find target short term pic
+    auto it = std::find_if(RefPicListX_init.begin(), RefPicListX_init.end(),
+        [picNumLX](const std::tuple<int, std::shared_ptr<Slice>>& value) {
+            auto& [pic_num, ref_slice] = value;
+            if (ref_slice->at_least_one_short_term_ref() && pic_num == picNumLX)
+                return true;
+            return false;
+        });
+
+    if (it == RefPicListX_init.end()) {
+        spdlog::error("cannot find short term ref pic by pic num in modification_process_of_reference_picture_lists_for_short_term_reference_pictures");
+        assert(false);
+    }
+
+    // TODO: still has questions about this process
+
+    for (int cIdx = num_ref_idx_lX_active_minus1 + 1; cIdx > refIdxLX; cIdx--)
+        RefPicListX[cIdx] = RefPicListX[cIdx - 1];
+
+    RefPicListX[refIdxLX++] = *it;
+
+    int nIdx = refIdxLX;
+    auto PicNumF = [](const std::tuple<int, std::shared_ptr<Slice>>& value) {
+        auto& [pic_num, ref_slice] = value;
+        // ref_slice may be null
+        if (ref_slice && ref_slice->at_least_one_short_term_ref())
+            return pic_num;
+        return INT32_MAX; // note: this should be ok
+    };
+    for (int cIdx = refIdxLX; cIdx <= num_ref_idx_lX_active_minus1 + 1; cIdx++) {
+        if (PicNumF(RefPicListX[cIdx]) != picNumLX)
+            RefPicListX[nIdx++] = RefPicListX[cIdx];
+    }
+
+    return refIdxLX; // refIdxLX is already incremented
 }
 
-int Slice::modification_process_of_reference_picture_lists_for_long_term_reference_pictures(int refIdxLx,
-    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list,
+int Slice::modification_process_of_reference_picture_lists_for_long_term_reference_pictures(
+    int refIdxLX,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX,
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX_init,
+    int num_ref_idx_lX_active_minus1,
     int long_term_pic_num)
 {
 
-    return 0;
+    for (int cIdx = num_ref_idx_lX_active_minus1 + 1; cIdx > refIdxLX; cIdx--)
+        RefPicListX[cIdx] = RefPicListX[cIdx - 1];
+
+    // find target long term pic
+    auto it = std::find_if(RefPicListX_init.begin(), RefPicListX_init.end(),
+        [long_term_pic_num](const std::tuple<int, std::shared_ptr<Slice>>& value) {
+            auto& [pic_num, ref_slice] = value;
+            if (ref_slice->at_least_one_long_term_ref() && pic_num == long_term_pic_num)
+                return true;
+            return false;
+        });
+
+    if (it == RefPicListX_init.end()) {
+        spdlog::error("cannot find short term ref pic by pic num in modification_process_of_reference_picture_lists_for_long_term_reference_pictures");
+        assert(false);
+    }
+
+    RefPicListX[refIdxLX++] = *it;
+
+    int nIdx = refIdxLX;
+
+    auto LongTermPicNumF = [](const std::tuple<int, std::shared_ptr<Slice>>& value) {
+        auto& [pic_num, ref_slice] = value;
+        // ref_slice may be null
+        if (ref_slice && ref_slice->at_least_one_long_term_ref())
+            return pic_num;
+        return INT32_MAX; // note: this should be ok
+    };
+
+    for (int cIdx = refIdxLX; cIdx <= num_ref_idx_lX_active_minus1 + 1; cIdx++)
+        if (LongTermPicNumF(RefPicListX[cIdx]) != long_term_pic_num)
+            RefPicListX[nIdx++] = RefPicListX[cIdx];
+
+    return refIdxLX;
 }

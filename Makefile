@@ -8,7 +8,7 @@ CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
 CXXOBJ = $(CXXSRC:%.cpp=%.o)
 DEBUG_FLAG = -g -O0 -Werror
 CFLAGS = $(DEBUG_FLAG)
-CXXFLAGS = $(DEBUG_FLAG) -Ithird_party/spdlog/include
+CXXFLAGS = $(DEBUG_FLAG) -std=gnu++17 -Ithird_party/spdlog/include
 
 $(CXXOBJ) : %.o:%.cpp
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
