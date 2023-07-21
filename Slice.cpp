@@ -150,14 +150,14 @@ int Slice::parse_single_ref_pic_list_modification(int idx)
         }
     } while (modification_of_pic_nums_idc != 3);
 
-    spdlog::trace("ref_pic_list_modification_{}:", idx);
+    spdlog::warn("ref_pic_list_modification_{}:", idx);
     if (!list->empty()) {
         for (auto& entry : *list) {
-            spdlog::trace("  modification_op {}, {}",
+            spdlog::warn("  modification_op {}, {}",
                 std::get<0>(entry), std::get<1>(entry));
         }
     } else
-        spdlog::trace("  null", idx);
+        spdlog::warn("  null", idx);
 
     return ret;
 }
@@ -168,19 +168,21 @@ int Slice::parse_ref_pic_list_modification()
 
     if (!is_I_slice() && !is_SI_slice()) {
         ref_pic_list_modification_flag_l0_ = rbsp_data_->read_u1();
-        spdlog::info("ref_pic_list_modification_flag_l0 {}", (bool)ref_pic_list_modification_flag_l0_);
+        spdlog::warn("ref_pic_list_modification_flag_l0 {}", (bool)ref_pic_list_modification_flag_l0_);
         if (ref_pic_list_modification_flag_l0_) {
             spdlog::trace("will parse ref_pic_list_modification 0");
             ret = parse_single_ref_pic_list_modification(0);
-        }
+        } else
+            spdlog::warn("ref_pic_list_modification_flag_l0 is false, no need to modify ref_pic_list_0");
     }
     if (is_B_slice()) {
         ref_pic_list_modification_flag_l1_ = rbsp_data_->read_u1();
-        spdlog::info("ref_pic_list_modification_flag_l1 {}", (bool)ref_pic_list_modification_flag_l1_);
+        spdlog::warn("ref_pic_list_modification_flag_l1 {}", (bool)ref_pic_list_modification_flag_l1_);
         if (ref_pic_list_modification_flag_l1_) {
             spdlog::trace("will parse ref_pic_list_modification 1");
             ret = parse_single_ref_pic_list_modification(1);
-        }
+        } else
+            spdlog::warn("ref_pic_list_modification_flag_l1 is false, no need to modify ref_pic_list_1");
     }
     return ret;
 }
@@ -193,7 +195,7 @@ int Slice::parse_dec_ref_pic_marking()
         long_term_frame_idx,
         max_long_term_frame_idx_plus1;
     if (rbsp_data_->idr_pic_flag()) {
-        spdlog::trace("{}: this slice is a idr pic", __func__);
+        spdlog::warn("dec_ref_pic_marking: this slice is a idr pic");
 
         no_output_of_prior_pics_flag_ = rbsp_data_->read_u1();
         spdlog::trace("no_output_of_prior_pics_flag {}", (bool)no_output_of_prior_pics_flag_);
@@ -205,16 +207,15 @@ int Slice::parse_dec_ref_pic_marking()
         spdlog::trace("long_term_reference_flag {}", (bool)long_term_reference_flag_);
 
         if (long_term_reference_flag_) {
-            spdlog::warn("this idr is set as long-term ref pic with long-term idx 0");
-            MaxLongTermFrameIdx_ = 0;
+            spdlog::warn("this idr will be set as long-term ref pic with long-term idx 0");
         } else
-            spdlog::warn("this idr is set as short-term ref pic");
+            spdlog::warn("this idr will be set as short-term ref pic");
 
     } else {
-        spdlog::trace("{}: this slice is a non-idr ref pic", __func__);
+        spdlog::warn("dec_ref_pic_marking:: this slice is a non-idr ref pic");
 
         adaptive_ref_pic_marking_mode_flag_ = rbsp_data_->read_u1();
-        spdlog::trace("adaptive_ref_pic_marking_mode_flag {}", (bool)adaptive_ref_pic_marking_mode_flag_);
+        spdlog::warn("adaptive_ref_pic_marking_mode_flag {}", (bool)adaptive_ref_pic_marking_mode_flag_);
 
         if (adaptive_ref_pic_marking_mode_flag_) {
             do {
@@ -255,14 +256,15 @@ int Slice::parse_dec_ref_pic_marking()
                 }
             } while (memory_management_control_operation != 0);
 
-            spdlog::trace("dec_ref_pic_marking:");
+            spdlog::warn("dec_ref_pic_marking:");
             for (int i = 0; i < memory_management_control_operation_list_.size(); i++) {
-                spdlog::trace("  memory_management_control_operation {}, {}, {}",
+                spdlog::warn("  memory_management_control_operation {}, {}, {}",
                     std::get<0>(memory_management_control_operation_list_[i]),
                     std::get<1>(memory_management_control_operation_list_[i]),
                     std::get<2>(memory_management_control_operation_list_[i]));
             }
-        }
+        } else
+            spdlog::warn("adaptive_ref_pic_marking_mode_flag is false");
     }
     return 0;
 }
@@ -297,10 +299,10 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         colour_plane_id_ = rbsp_data_->read_u(2);
         spdlog::warn("this slice has colour_plane_id {}, check if it is a 4:4:4 chroma format", colour_plane_id_);
     } else
-        spdlog::warn("this slice has no colour_plane_id");
+        spdlog::warn("this slice does not have colour_plane_id");
 
     frame_num_ = rbsp_data_->read_u(sps_->frame_num_bits());
-    spdlog::warn("frame_num: {}", frame_num_);
+    spdlog::warn("frame_num for this slice: {}", frame_num_);
 
     if (!sps_->frame_mbs_only()) {
         spdlog::trace("will read field_pic_flag");
@@ -328,7 +330,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         idr_pic_id_ = rbsp_data_->read_ue();
         spdlog::warn("this slice is an idr pic, idr_pic_id: {}", idr_pic_id_);
     } else
-        spdlog::warn("this slice is not an idr pic, does not have idr_pic_id");
+        spdlog::warn("this slice isn't an idr pic, does not have idr_pic_id");
 
     if (sps_->pic_order_cnt_type() == 0) {
         spdlog::warn("this slice has a poc type of 0");
@@ -339,7 +341,8 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         if (bottom_field_pic_order_in_frame_present()) {
             delta_pic_order_cnt_bottom_ = rbsp_data_->read_se();
             spdlog::warn("delta_pic_order_cnt_bottom present: {}", delta_pic_order_cnt_bottom_);
-        }
+        } else
+            spdlog::warn("delta_pic_order_cnt_bottom isn't present, top_poc may equal bottom_poc");
     }
 
     if (sps_->pic_order_cnt_type() == 1) {
@@ -351,8 +354,10 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
             if (bottom_field_pic_order_in_frame_present()) {
                 delta_pic_order_cnt_1_ = rbsp_data_->read_se();
                 spdlog::warn("delta_pic_order_cnt_1: {}", delta_pic_order_cnt_1_);
-            }
-        }
+            } else
+                spdlog::warn("delta_pic_order_cnt_1 is not present");
+        } else
+            spdlog::warn("delta_pic_order for poc type 1 is always_zero");
     }
 
     if (pps_->redundant_pic_cnt_present()) {
@@ -412,7 +417,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         if (is_I_slice() || is_SI_slice()) {
             spdlog::warn("this slice is I/SI slice, no need to parse ref_pic_list_modification");
         } else
-            spdlog::warn("this slice is P/B slice, need to parse ref_pic_list_modification");
+            spdlog::warn("this slice is P/B slice, need to parse ref_pic_list_modification:");
         parse_ref_pic_list_modification();
     }
 
@@ -554,15 +559,19 @@ void Slice::cal_poc(VideoDecoder* dec)
     switch (sps_->pic_order_cnt_type()) {
     case 0: {
         cal_poc_0(dec->prev_ref_pic_poc());
+        break;
     }
     case 1: {
         cal_poc_1(dec->prev_frame_num());
+        break;
     }
     case 2: {
         cal_poc_2(dec->prev_frame_num());
+        break;
     }
     default:
         assert(false);
+        break;
     }
 }
 
@@ -596,6 +605,13 @@ void Slice::cal_poc_0(const std::pair<int, int>& prev_ref_pic_poc)
         else
             BottomFieldOrderCnt_ = PicOrderCntMsb_ + pic_order_cnt_lsb_;
     }
+
+    if (is_frame_) {
+        spdlog::warn("FrameNume {}, TopFieldOrderCnt {}, BottomFieldOrderCnt {}",
+            frame_num_, TopFieldOrderCnt_, BottomFieldOrderCnt_);
+    } else {
+        // TODO
+    }
 }
 
 // TODO: when should we update this?
@@ -606,6 +622,7 @@ void Slice::update_prev_poc_0(std::pair<int, int>& prev_ref_pic_poc)
     auto& [prevPicOrderCntMsb, prevPicOrderCntLsb] = prev_ref_pic_poc;
 
     if (rbsp_data_->nal_ref_idc()) {
+        // thi cond is unnecessary
         if (has_mm_op_5_) {
             // poc should already minus tmp_poc
             if (!is_bottom_field_) {
@@ -792,7 +809,7 @@ int Slice::decoding_process_for_picture_numbers(std::shared_ptr<Slice> current_s
 
     int FrameNumWrap;
 
-    int PicNum_Or_LongTermPicNum;
+    int ShortTerm_Or_LongTerm_PicNum;
 
     bool field_pic_flag = current_slice->field_pic_flag();
     bool bottom_field_flag = current_slice->bottom_field_flag();
@@ -819,27 +836,38 @@ int Slice::decoding_process_for_picture_numbers(std::shared_ptr<Slice> current_s
     if (!field_pic_flag) {
         if (at_least_one_short_term_ref()) {
             // short term and long term are mutual-exclusive
-            PicNum_Or_LongTermPicNum = FrameNumWrap;
+            ShortTerm_Or_LongTerm_PicNum = FrameNumWrap;
         } else
-            PicNum_Or_LongTermPicNum = LongTermFrameIdx_;
+            ShortTerm_Or_LongTerm_PicNum = LongTermFrameIdx_;
     } else {
         // TODO
     }
 
-    return PicNum_Or_LongTermPicNum;
+    return ShortTerm_Or_LongTerm_PicNum;
 }
 
 // TODO: how to handle complementary field pair?
 int Slice::PicOrderCnt()
 {
-    int poc = -1;
+    int poc;
     if (is_frame_)
         poc = std::min(TopFieldOrderCnt_, BottomFieldOrderCnt_);
     else if (is_top_field_)
         poc = TopFieldOrderCnt_;
-    else if (is_top_field_)
+    else if (is_bottom_field_)
         poc = BottomFieldOrderCnt_;
     return poc;
+}
+
+void Slice::update_prev_frame_num_or_prev_ref_pic_poc(VideoDecoder* vdec)
+{
+    if (sps_->pic_order_cnt_type() == 0
+        && is_reference_slice()
+        && at_least_one_ref()) // at_least_one_ref() more reliable ?
+        update_prev_poc_0(vdec->prev_ref_pic_poc());
+    else if (sps_->pic_order_cnt_type() == 1
+        || sps_->pic_order_cnt_type() == 2)
+        update_prev_frame_num_1_or_2(vdec->prev_frame_num());
 }
 
 int Slice::PicOrderCntOrLongTermPicNum()
@@ -852,8 +880,10 @@ int Slice::PicOrderCntOrLongTermPicNum()
 
 void Slice::set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> ref_list_P_0)
 {
+    // keep a init version of ref_list_P_0
     ref_list_P_0_init_ = std::move(ref_list_P_0);
 
+    // copy ref_list_P_0_init_ to ref_list_P_0_
     ref_list_P_0_.insert(ref_list_P_0_.end(), ref_list_P_0_init_.begin(), ref_list_P_0_init_.end());
 
     // update the ref list by num_ref_idx_l0_active_minus1
@@ -927,10 +957,12 @@ void Slice::modification_process_for_reference_picture_lists()
         }
     }
 
-    auto ref_pic_log = [](const char* message, const char* str, const std::vector<std::tuple<int, std::shared_ptr<Slice>>>& value) {
-        spdlog::debug(message);
+    auto ref_pic_log = [](const char* message,
+                           const char* str,
+                           const std::vector<std::tuple<int, std::shared_ptr<Slice>>>& value) {
+        spdlog::warn(message);
         for (auto& [pic_num, ref_slice] : value) {
-            spdlog::debug("  %s %d", str, pic_num);
+            spdlog::warn("  {} {}", str, pic_num);
         }
     };
 
@@ -950,7 +982,8 @@ void Slice::modification_process_for_reference_picture_lists()
 
         check_ref_pic_list(ref_list_B_0_);
 
-        ref_pic_log("ref list B 0:", "poc or long-term picnum", ref_list_B_0_);
+        // poc has been replaced with pic num
+        ref_pic_log("ref list B 0:", "short-term or long-term picnum", ref_list_B_0_);
 
     } else {
         ref_list_P_0_.pop_back(); // remove dummy element
@@ -990,11 +1023,11 @@ void Slice::modification_process_for_reference_picture_lists()
 
         check_ref_pic_list(ref_list_B_1_);
 
-        ref_pic_log("ref list B 1:", "poc or long-term picnum", ref_list_B_1_);
+        ref_pic_log("ref list B 1:", "short-term or long-term picnum", ref_list_B_1_);
     }
 }
 
-// only update first num_ref_idx_lX_active_minus1 element?
+// only update first (num_ref_idx_lX_active_minus1 + 1) element?
 int Slice::modification_process_of_reference_picture_lists_for_short_term_reference_pictures(
     int refIdxLX,
     std::vector<std::tuple<int, std::shared_ptr<Slice>>>& RefPicListX,
@@ -1030,7 +1063,7 @@ int Slice::modification_process_of_reference_picture_lists_for_short_term_refere
     else
         picNumLX = picNumLXNoWrap;
 
-    // find target short term pic
+    // find target short term pic from RefPicListX_init
     auto it = std::find_if(RefPicListX_init.begin(), RefPicListX_init.end(),
         [picNumLX](const std::tuple<int, std::shared_ptr<Slice>>& value) {
             auto& [pic_num, ref_slice] = value;
@@ -1063,6 +1096,10 @@ int Slice::modification_process_of_reference_picture_lists_for_short_term_refere
         if (PicNumF(RefPicListX[cIdx]) != picNumLX)
             RefPicListX[nIdx++] = RefPicListX[cIdx];
     }
+
+    // always reset the last element
+    // maybe no need to do this?
+    RefPicListX[num_ref_idx_lX_active_minus1 + 1] = {};
 
     return refIdxLX; // refIdxLX is already incremented
 }
@@ -1108,5 +1145,94 @@ int Slice::modification_process_of_reference_picture_lists_for_long_term_referen
         if (LongTermPicNumF(RefPicListX[cIdx]) != long_term_pic_num)
             RefPicListX[nIdx++] = RefPicListX[cIdx];
 
+    // always reset the last element
+    // maybe no need to do this?
+    RefPicListX[num_ref_idx_lX_active_minus1 + 1] = {};
+
     return refIdxLX;
+}
+
+void Slice::adaptive_memory_control_decoded_reference_picture_marking_process(VideoDecoder* vdec)
+{
+    std::vector<std::shared_ptr<Slice>>& ref_slices = vdec->ref_slices();
+    // memory_management_control_operation_list_
+    for (auto& mm_ctrl : memory_management_control_operation_list_) {
+        switch (std::get<0>(mm_ctrl)) {
+        case 1: {
+            // marking_process_of_a_short_term_reference_picture_as_unused_for_reference
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            // difference_of_pic_nums_minus1, 0);
+            int difference_of_pic_nums_minus1 = std::get<1>(mm_ctrl);
+            int picNumX = CurrPicNum() - (difference_of_pic_nums_minus1 + 1);
+            vdec->mark_short_term_as_unref_by_picNumX(picNumX, shared_from_this());
+            break;
+        }
+        case 2: {
+            // Marking process of a long-term reference picture as "unused for reference"
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            // long_term_pic_num, 0);
+
+            int long_term_pic_num = std::get<1>(mm_ctrl);
+
+            vdec->mark_long_term_as_unref_by_long_term_pic_num(long_term_pic_num, shared_from_this());
+            break;
+        }
+        case 3: {
+            // Assignment process of a LongTermFrameIdx to a short-term reference picture
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            // difference_of_pic_nums_minus1,
+            // long_term_frame_idx);
+
+            int difference_of_pic_nums_minus1 = std::get<1>(mm_ctrl);
+            int long_term_frame_idx = std::get<2>(mm_ctrl);
+            int picNumX = CurrPicNum() - (difference_of_pic_nums_minus1 + 1);
+
+            vdec->mark_short_term_as_long_term(picNumX, long_term_frame_idx, shared_from_this());
+            break;
+        }
+        case 4: {
+            // Decoding process for MaxLongTermFrameIdx
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            // max_long_term_frame_idx_plus1,
+            // 0);
+
+            int max_long_term_frame_idx_plus1 = std::get<1>(mm_ctrl);
+            vdec->set_max_long_term_frame_idx_and_mark_long_term_as_unref(max_long_term_frame_idx_plus1, shared_from_this());
+            break;
+        }
+        case 5: {
+            // Marking process of all reference pictures as "unused for reference" and
+            // setting MaxLongTermFrameIdx to "no long-term frame indices"
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            //     0,
+            //     0);
+            vdec->mark_all_unref_and_set_max_long_term_frame_idx_to_none();
+            break;
+        }
+        case 6: {
+            // Process for assigning a long-term frame index to the current picture
+
+            // memory_management_control_operation_list_.emplace_back(memory_management_control_operation,
+            //     long_term_frame_idx,
+            //     0);
+            int long_term_frame_idx = std::get<1>(mm_ctrl);
+
+            vdec->possiblely_mark_long_term_as_unref_by_long_term_pic_num(long_term_frame_idx, shared_from_this());
+
+            mark_as_long_or_short_term_ref(MarkScope::All, true /* bool long_term */);
+
+            set_long_term_frame_idx(long_term_frame_idx);
+            break;
+        }
+        default: {
+            assert(false);
+            break;
+        }
+        }
+    }
 }

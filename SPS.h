@@ -43,6 +43,11 @@ public:
         return num_ref_frames_in_pic_order_cnt_cycle_;
     }
 
+    int max_num_ref_frames()
+    {
+        return max_num_ref_frames_;
+    }
+
     std::vector<int>& offset_for_ref_frame() { return offset_for_ref_frame_; }
     int offset_for_non_ref_pic() { return offset_for_non_ref_pic_; }
     int offset_for_top_to_bottom_field() { return offset_for_top_to_bottom_field_; }

@@ -1,5 +1,6 @@
 
 
+#include <cassert>
 #include <iostream>
 #include <memory>
 
@@ -10,7 +11,7 @@
 
 int main(int argn, char** argv)
 {
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::warn);
 
     if (argn < 2) {
         spdlog::error("Too less args");
@@ -47,7 +48,7 @@ int main(int argn, char** argv)
 
         switch (nal_unit_type) {
         case NalUnitType::SEI:
-            spdlog::warn("Currently we will ignore SEI slice");
+            spdlog::trace("Currently we will ignore SEI slice");
             break;
         case NalUnitType::SPS:
             spdlog::trace("Will add a sps slice to our video decoder");
@@ -87,7 +88,7 @@ int main(int argn, char** argv)
                 goto end;
             }
             if (--ctrl_num == 0)
-                goto end; // tmp
+                // goto end; // tmp
             break;
         default:
             /* ignore other nal */

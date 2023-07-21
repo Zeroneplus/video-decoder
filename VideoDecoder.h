@@ -49,6 +49,34 @@ public:
 
     void decoded_reference_picture_marking_process(std::shared_ptr<Slice> current_slice);
 
+    std::vector<std::shared_ptr<Slice>>& ref_slices()
+    {
+        return ref_slices_;
+    }
+
+    void mark_short_term_as_unref_by_picNumX(int picNumX,
+        const std::shared_ptr<Slice>& current_slice);
+
+    void mark_long_term_as_unref_by_long_term_pic_num(int LongTermPicNum,
+        const std::shared_ptr<Slice>& current_slice);
+
+    void set_max_long_term_frame_idx(int max_long_term_frame_idx);
+
+    void possiblely_mark_long_term_as_unref_by_long_term_pic_num(
+        int LongTermPicNum,
+        const std::shared_ptr<Slice>& current_slice);
+
+    void mark_short_term_as_long_term(
+        int picNumX,
+        int long_term_frame_idx,
+        const std::shared_ptr<Slice>& current_slice);
+
+    void set_max_long_term_frame_idx_and_mark_long_term_as_unref(
+        int max_long_term_frame_idx_plus1,
+        const std::shared_ptr<Slice>& current_slice);
+
+    void mark_all_unref_and_set_max_long_term_frame_idx_to_none();
+
 private:
     std::map<uint32_t, std::shared_ptr<Sps>> sps_map;
     std::map<uint32_t, std::shared_ptr<Pps>> pps_map;
@@ -71,4 +99,16 @@ private:
         int current_poc,
         std::vector<std::tuple<int, std::shared_ptr<Slice>>>& ref_list_with_POC_or_LongTermPicNum,
         std::shared_ptr<Slice> current_slice);
+
+    void sliding_window_decoded_reference_picture_marking_process(std::shared_ptr<Slice> current_slice);
+
+    void purge_non_ref_slice();
+
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>
+    get_short_term_ref_list_with_PicNum(const std::shared_ptr<Slice>& current_slice);
+
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>
+    get_long_term_ref_list_with_PicNum(const std::shared_ptr<Slice>& current_slice);
+
+    int max_long_term_frame_idx_ = -1;
 };

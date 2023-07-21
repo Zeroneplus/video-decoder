@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+
 #include "NalUnit.h"
 #include "PPS.h"
 #include "SPS.h"
@@ -42,7 +44,13 @@ enum SliceFieldFrameType {
     BottomField
 };
 
-class Slice {
+enum MarkScope {
+    All,
+    Top,
+    Bottom
+};
+
+class Slice : public std::enable_shared_from_this<Slice> {
 public:
     Slice() = default;
     Slice(std::shared_ptr<NalUnit::RbspData> rbsp);
@@ -121,6 +129,126 @@ public:
     bool is_reference_slice()
     {
         return rbsp_data_->nal_ref_idc() != 0;
+    }
+
+    bool is_idr_pic()
+    {
+        return rbsp_data_->idr_pic_flag();
+    }
+
+    bool long_term_reference_flag()
+    {
+        return long_term_reference_flag_;
+    }
+
+    bool adaptive_ref_pic_marking_mode_flag()
+    {
+        return adaptive_ref_pic_marking_mode_flag_;
+    }
+
+    int max_num_ref_frames()
+    {
+        return sps_->max_num_ref_frames();
+    }
+
+    void mark_as_long_or_short_term_ref(enum MarkScope scope, bool long_term)
+    {
+        enum RefStatus status = long_term ? RefStatus::LongTerm : RefStatus::ShortTerm;
+
+        switch (scope) {
+        case MarkScope::All: {
+            if (is_frame_) {
+                frame_ref_status_ = status;
+                top_field_ref_status_ = status;
+                bottom_field_ref_status_ = status;
+            } else if (is_top_field_) { // note: currently not consider complementary pair
+                top_field_ref_status_ = status;
+            } else if (is_bottom_field_) {
+                bottom_field_ref_status_ = status;
+            }
+
+            break;
+        }
+        case MarkScope::Top: {
+
+            if (is_frame_) {
+                top_field_ref_status_ = status;
+                if (top_field_ref_status_ == bottom_field_ref_status_)
+                    frame_ref_status_ = top_field_ref_status_;
+            } else if (is_top_field_) {
+                top_field_ref_status_ = status;
+            } else if (is_bottom_field_) {
+            }
+
+            break;
+        }
+        case MarkScope::Bottom: {
+            if (is_frame_) {
+                bottom_field_ref_status_ = status;
+                if (top_field_ref_status_ == bottom_field_ref_status_)
+                    frame_ref_status_ = top_field_ref_status_;
+            } else if (is_top_field_) {
+            } else if (is_bottom_field_) {
+                bottom_field_ref_status_ = status;
+            }
+            break;
+        }
+        default:
+            assert(false);
+            break;
+        }
+    }
+
+    void mark_as_non_ref(enum MarkScope scope)
+    {
+        switch (scope) {
+        case MarkScope::All: {
+            if (is_frame_) {
+                frame_ref_status_ = RefStatus::NonRef;
+                top_field_ref_status_ = RefStatus::NonRef;
+                bottom_field_ref_status_ = RefStatus::NonRef;
+            } else {
+                assert(false);
+            }
+            break;
+        }
+        default:
+            assert(false);
+            break;
+        }
+    }
+
+    bool has_mm_op_5()
+    {
+        return has_mm_op_5_;
+    }
+
+    void update_poc_when_has_mm_op_5()
+    {
+        if (has_mm_op_5_) {
+            int tempPicOrderCnt = PicOrderCnt();
+
+            if (is_frame_) {
+                TopFieldOrderCnt_ -= tempPicOrderCnt;
+                BottomFieldOrderCnt_ -= tempPicOrderCnt;
+            } else if (is_top_field_) {
+                TopFieldOrderCnt_ -= tempPicOrderCnt;
+            } else if (is_bottom_field_) {
+                BottomFieldOrderCnt_ -= tempPicOrderCnt;
+            }
+        }
+    }
+
+    void update_prev_frame_num_or_prev_ref_pic_poc(VideoDecoder* vdec);
+
+    void set_long_term_frame_idx(int idx)
+    {
+        LongTermFrameIdx_ = idx;
+    }
+
+    int long_term_frame_idx()
+    {
+        return LongTermFrameIdx_;
     }
 
     bool MbaffFrameFlag()
@@ -260,6 +388,8 @@ public:
         int num_ref_idx_lX_active_minus1,
         int long_term_pic_num);
 
+    void adaptive_memory_control_decoded_reference_picture_marking_process(VideoDecoder* vdec);
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -314,7 +444,6 @@ private:
         long_term_reference_flag_ = 0,
         adaptive_ref_pic_marking_mode_flag_ = 0;
     std::vector<std::tuple<int, int, int>> memory_management_control_operation_list_;
-    int MaxLongTermFrameIdx_ = -1 /* no long-term frame indices */;
 
     int parse_single_ref_pic_list_modification(int idx);
     int parse_single_pred_weight_table(int idx);
