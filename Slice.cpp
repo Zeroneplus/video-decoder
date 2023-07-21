@@ -1236,3 +1236,20 @@ void Slice::adaptive_memory_control_decoded_reference_picture_marking_process(Vi
         }
     }
 }
+
+int Slice::parse_slice_data(VideoDecoder* decoder)
+{
+    // allocate memory for yuv data
+    int PicWidthInMbs = sps_->PicWidthInMbs();
+    int FrameHeightInMbs = sps_->FrameHeightInMbs();
+    int PicHeightInMbs = is_frame_ ? FrameHeightInMbs : FrameHeightInMbs / 2;
+    int size_y = PicWidthInMbs * 16 * PicHeightInMbs * 16;
+    int size_u_or_v = PicWidthInMbs * sps_->MbWidthC() * PicHeightInMbs * sps_->MbHeightC();
+
+    yuv_data_ = std::vector<uint8_t>(size_y + size_u_or_v * 2, 0);
+    y_data_ = yuv_data_.data();
+    u_data_ = y_data_ + size_y;
+    v_data_ = u_data_ + size_u_or_v;
+
+    // start parse macro block
+}

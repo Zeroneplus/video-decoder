@@ -87,8 +87,9 @@ int main(int argn, char** argv)
                 spdlog::error("Some error occur when add a SliceWithoutPartition to video decoder");
                 goto end;
             }
-            if (--ctrl_num == 0)
-                // goto end; // tmp
+            if (--ctrl_num == 0) {
+                goto end; // tmp
+            }
             break;
         default:
             /* ignore other nal */

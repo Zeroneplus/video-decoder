@@ -144,8 +144,7 @@ int Sps::parse()
         spdlog::info("calculated ExpectedDeltaPerPicOrderCntCycle {}", ExpectedDeltaPerPicOrderCntCycle_);
 
     } else {
-        spdlog::error("poc type is 2, unsupported");
-        return -1;
+        spdlog::warn("poc type is 2");
     }
 
     max_num_ref_frames_ = rbsp_data_->read_ue();

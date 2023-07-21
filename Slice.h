@@ -488,4 +488,8 @@ private:
         ref_list_B_0_init_,
         ref_list_B_1_init_;
     int picNumL0Pred_ = INT32_MIN, picNumL1Pred_ = INT32_MIN;
+
+    // yuv data
+    std::vector<uint8_t> yuv_data_;
+    uint8_t *y_data_, *u_data_, *v_data_;
 };

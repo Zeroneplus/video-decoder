@@ -65,6 +65,8 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
     // update prev_frame_num_ or prev_ref_pic_poc_
     slice->update_prev_frame_num_or_prev_ref_pic_poc(this);
 
+    // output yuv data for test
+
     return ret;
 }
 
