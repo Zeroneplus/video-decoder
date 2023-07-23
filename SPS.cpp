@@ -100,6 +100,11 @@ int Sps::parse()
 
     spdlog::warn("calculated ChromaArrayType {}", ChromaArrayType_);
 
+    if (ChromaArrayType_ != 1) {
+        spdlog::error("only yuv 4:2:0 is allowed");
+        return -1;
+    }
+
     log2_max_frame_num_minus4_ = rbsp_data_->read_ue();
     spdlog::warn("log2_max_frame_num_minus4 {}", log2_max_frame_num_minus4_);
     MaxFrameNum_ = 1 << (log2_max_frame_num_minus4_ + 4);
