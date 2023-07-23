@@ -179,6 +179,9 @@ int Sps::parse()
         else
             spdlog::warn("this file allow field, frame,"
                          "further info should be determined from slice header");
+
+        spdlog::error("only frame mode is supported now");
+        return -1;
     } else
         spdlog::warn("this file is frame_mbs_only");
 
