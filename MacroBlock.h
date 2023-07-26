@@ -33,7 +33,7 @@ enum class MbType {
     I_PCM,
 
     // SI
-    MbTypeSI = 100, // TODO
+    SI = 100,
 
     // P or SP
     P_L0_16x16 = 200,
@@ -70,11 +70,11 @@ enum class MbType {
     B_Skip,
 
     // NA
-    MbTypeNA = 400, // TODO
+    NA = 400,
 };
 
 enum class MbPartPredMode {
-    MbPartPredModeNA, // TODO
+    NA,
     Intra_4x4,
     Intra_8x8,
     Intra_4x4_Or_Intra_8x8, // not determined
@@ -149,7 +149,7 @@ public:
     }
 
 private:
-    enum MbType mb_type_ { MbType::MbTypeNA };
+    enum MbType mb_type_ { MbType::NA };
     Slice* slice_ { nullptr };
 };
 
