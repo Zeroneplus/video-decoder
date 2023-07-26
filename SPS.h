@@ -117,7 +117,6 @@ public:
     int MaxFrameNum() { return MaxFrameNum_; }
     int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
     int ExpectedDeltaPerPicOrderCntCycle() { return ExpectedDeltaPerPicOrderCntCycle_; }
-    int FrameHeightInMbs() { return FrameHeightInMbs_; }
 
 private:
     int ChromaArrayType_;

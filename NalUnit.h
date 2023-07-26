@@ -55,6 +55,8 @@ public:
             return p >= end;
         }
 
+        bool more_rbsp_data();
+
         uint32_t read_u1();
 
         void skip_u1();
@@ -69,16 +71,20 @@ public:
 
         int32_t read_se();
 
+        uint32_t read_te(int range);
+
         void parse_nal_header();
 
         NalUnitType nal_unit_type()
         {
             return nal_unit_type_;
         }
+
         bool idr_pic_flag()
         {
             return idr_pic_flag_;
         }
+
         int nal_ref_idc()
         {
             return nal_ref_idc_;

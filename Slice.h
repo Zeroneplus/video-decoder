@@ -2,6 +2,7 @@
 
 #include <cassert>
 
+#include "MacroBlock.h"
 #include "NalUnit.h"
 #include "PPS.h"
 #include "SPS.h"
@@ -389,6 +390,8 @@ public:
         int long_term_pic_num);
 
     void adaptive_memory_control_decoded_reference_picture_marking_process(VideoDecoder* vdec);
+
+    int NextMbAddress(int CurrMbAddr);
 
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;

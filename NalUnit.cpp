@@ -7,6 +7,66 @@
 
 #include "NalUnit.h"
 
+struct CodedBlockPatternMap {
+    int codeNum = -1;
+    int Intra_4x4_or_Intra_8x8 = -1;
+    int Inter = -1;
+};
+
+static const CodedBlockPatternMap chroma_array_1_2_me[] = {
+    { 0, 47, 0 },
+    { 1, 31, 16 },
+    { 2, 15, 1 },
+    { 3, 0, 2 },
+    { 4, 23, 4 },
+    { 5, 27, 8 },
+    { 6, 29, 32 },
+    { 7, 30, 3 },
+    { 8, 7, 5 },
+    { 9, 11, 10 },
+    { 10, 13, 12 },
+    { 11, 14, 15 },
+    { 12, 39, 47 },
+    { 13, 43, 7 },
+    { 14, 45, 11 },
+    { 15, 46, 13 },
+    { 16, 16, 14 },
+    { 17, 3, 6 },
+    { 18, 5, 9 },
+    { 19, 10, 31 },
+    { 20, 12, 35 },
+    { 21, 19, 37 },
+    { 22, 21, 42 },
+    { 23, 26, 44 },
+    { 24, 28, 33 },
+    { 25, 35, 34 },
+    { 26, 37, 36 },
+    { 27, 42, 40 },
+    { 28, 44, 39 },
+    { 29, 1, 43 },
+    { 30, 2, 45 },
+    { 31, 4, 46 },
+    { 32, 8, 17 },
+    { 33, 17, 18 },
+    { 34, 18, 20 },
+    { 35, 20, 24 },
+    { 36, 24, 19 },
+    { 37, 6, 21 },
+    { 38, 9, 26 },
+    { 39, 22, 28 },
+    { 40, 25, 23 },
+    { 41, 32, 27 },
+    { 42, 33, 29 },
+    { 43, 34, 30 },
+    { 44, 36, 22 },
+    { 45, 40, 25 },
+    { 46, 38, 38 },
+    { 47, 41, 41 }
+};
+
+// TODO
+// static const CodedBlockPatternMap chroma_array_0_3 [] = {};
+
 int nal_unit_type_to_int(enum NalUnitType nal_unit_type)
 {
     int ret = 0;
@@ -322,6 +382,38 @@ int32_t NalUnit::RbspData::read_se()
     else
         r = -(r / 2);
     return r;
+}
+
+uint32_t NalUnit::RbspData::read_te(int range)
+{
+    uint32_t b = 0;
+
+    if (range <= 0)
+        return 0;
+
+    if (range == 1) {
+        b = read_u1();
+        return b == 0 ? 1 : 0;
+    }
+
+    return read_ue();
+}
+
+bool NalUnit::RbspData::more_rbsp_data()
+{
+    if (eof())
+        return false;
+
+    if (p < end - 1)
+        return true;
+
+    int mask = (1 << bits_left) - 1;
+    int s = 1 << (bits_left - 1);
+
+    if (s == (*p) & mask)
+        return false;
+    else
+        return true;
 }
 
 void NalUnit::RbspData::parse_nal_header()

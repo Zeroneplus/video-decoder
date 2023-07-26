@@ -1237,6 +1237,12 @@ void Slice::adaptive_memory_control_decoded_reference_picture_marking_process(Vi
     }
 }
 
+int Slice::NextMbAddress(int CurrMbAddr)
+{
+    // TODO: slice group
+    return CurrMbAddr + 1;
+}
+
 int Slice::parse_slice_data(VideoDecoder* decoder)
 {
     // allocate memory for yuv data
@@ -1252,4 +1258,54 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
     v_data_ = u_data_ + size_u_or_v;
 
     // start parse macro block
+
+    if (pps_->entropy_coding_mode()) {
+        while (!rbsp_data_->byte_aligned())
+            rbsp_data_->read_u1();
+    }
+
+    int CurrMbAddr = first_mb_in_slice_ * (1 + (MbaffFrameFlag() ? 1 : 0));
+    int moreDataFlag = 1,
+        prevMbSkipped = 0,
+        mb_skip_run = 0;
+
+    int mb_field_decoding_flag = 0 /* now only consider frame mode */;
+
+    do {
+        if (!is_I_slice() && !is_SI_slice()) {
+            if (!pps_->entropy_coding_mode()) {
+                mb_skip_run = rbsp_data_->read_ue();
+                prevMbSkipped = (mb_skip_run > 0);
+                // TODO: process skipped mb
+
+                for (int i = 0; i < mb_skip_run; i++)
+                    CurrMbAddr = NextMbAddress(CurrMbAddr);
+
+                if (mb_skip_run > 0)
+                    moreDataFlag = rbsp_data_->more_rbsp_data();
+            } else {
+                // TODO
+                assert(false);
+            }
+        }
+
+        if (moreDataFlag) {
+            if (MbaffFrameFlag() && (CurrMbAddr % 2 == 0 || (CurrMbAddr % 2 == 1 && prevMbSkipped)))
+                mb_field_decoding_flag = rbsp_data_->read_ue();
+
+            // parse macroblock
+            std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_);
+            mb->parse_MacroBlock();
+        }
+
+        if (!pps_->entropy_coding_mode())
+            moreDataFlag = rbsp_data_->more_rbsp_data();
+        else
+            assert(false); // TODO
+
+        CurrMbAddr = NextMbAddress(CurrMbAddr);
+
+    } while (moreDataFlag);
+
+    return 0;
 }

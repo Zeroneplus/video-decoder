@@ -54,6 +54,7 @@ public:
     {
         return num_ref_idx_l0_default_active_minus1_;
     }
+
     int num_ref_idx_l1_default_active_minus1()
     {
         return num_ref_idx_l1_default_active_minus1_;
