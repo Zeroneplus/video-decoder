@@ -70,6 +70,11 @@ public:
         return pic_init_qs_minus26_;
     }
 
+    bool transform_8x8_mode_flag()
+    {
+        return transform_8x8_mode_flag_;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* pps field */

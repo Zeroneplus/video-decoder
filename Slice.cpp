@@ -1276,10 +1276,13 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
             if (!pps_->entropy_coding_mode()) {
                 mb_skip_run = rbsp_data_->read_ue();
                 prevMbSkipped = (mb_skip_run > 0);
-                // TODO: process skipped mb
 
-                for (int i = 0; i < mb_skip_run; i++)
+                for (int i = 0; i < mb_skip_run; i++) {
+
+                    // TODO: process skipped mb
+
                     CurrMbAddr = NextMbAddress(CurrMbAddr);
+                }
 
                 if (mb_skip_run > 0)
                     moreDataFlag = rbsp_data_->more_rbsp_data();

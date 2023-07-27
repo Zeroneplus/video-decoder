@@ -124,10 +124,10 @@ enum class SubMbType {
 
 enum class SubMbPredMode {
     NA,
-    Direct,
     Pred_L0,
     Pred_L1,
     BiPred,
+    Direct,
 };
 
 struct SubMbTypeDesc {
@@ -145,12 +145,27 @@ public:
     MbTypeProxy(enum MbType mb_type, Slice* slice)
         : mb_type_(mb_type)
         , slice_(slice)
+        , sps_(slice->get_sps())
+        , pps_(slice->get_pps())
     {
     }
+
+    enum MbType mb_type()
+    {
+        return mb_type_;
+    }
+
+    enum MbPartPredMode MbPartPredMode_0();
+    enum MbPartPredMode MbPartPredMode_1();
+    int NumMbPart();
+
+    const char* name();
 
 private:
     enum MbType mb_type_ { MbType::NA };
     Slice* slice_ { nullptr };
+    Sps* sps_;
+    Pps* pps_;
 };
 
 class MacroBlock {
@@ -161,6 +176,8 @@ public:
     MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data)
         : slice_(slice)
         , rbsp_data_(rbsp_data)
+        , sps_(slice->get_sps())
+        , pps_(slice->get_pps())
     {
     }
 
@@ -168,11 +185,24 @@ public:
 
     void determine_mb_type();
 
+    void parse_mb_pred();
+
+    void parse_sub_mb_pred();
+
 private:
     Slice* slice_;
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
 
-    int mb_type_;
+    Sps* sps_;
+    Pps* pps_;
+
+    int mb_type_ { INT32_MIN };
 
     MbTypeProxy mb_type_proxy_;
+
+    std::vector<int> pcm_sample_luma;
+    std::vector<int> pcm_sample_chroma;
+
+    int transform_size_8x8_flag_ = 0;
+    int coded_block_pattern_ = 0;
 };

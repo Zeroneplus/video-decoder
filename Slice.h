@@ -393,6 +393,16 @@ public:
 
     int NextMbAddress(int CurrMbAddr);
 
+    Sps* get_sps()
+    {
+        return sps_.get();
+    }
+
+    Pps* get_pps()
+    {
+        return pps_.get();
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;

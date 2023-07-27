@@ -399,6 +399,16 @@ uint32_t NalUnit::RbspData::read_te(int range)
     return read_ue();
 }
 
+int NalUnit::RbspData::read_me(bool is_Inter)
+{
+    // only consider ChromaArrayType is equal to 1 or 2
+    uint32_t t = read_ue();
+
+    assert(t == chroma_array_1_2_me[t].codeNum);
+
+    return is_Inter ? chroma_array_1_2_me[t].Inter : chroma_array_1_2_me[t].Intra_4x4_or_Intra_8x8;
+}
+
 bool NalUnit::RbspData::more_rbsp_data()
 {
     if (eof())

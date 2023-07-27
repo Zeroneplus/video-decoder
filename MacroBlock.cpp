@@ -771,7 +771,6 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
         } },
 };
 
-
 std::map<enum SubMbType, SubMbTypeDesc> sub_mb_type_desc_map = {
     { SubMbType::P_L0_8x8,
         { SubMbType::P_L0_8x8,
@@ -912,6 +911,26 @@ std::map<enum SubMbType, SubMbTypeDesc> sub_mb_type_desc_map = {
 
 }
 
+enum MbPartPredMode MbTypeProxy::MbPartPredMode_0()
+{
+    return mb_type_desc_map[mb_type_].mb_part_pred_mode_0;
+}
+
+enum MbPartPredMode MbTypeProxy::MbPartPredMode_1()
+{
+    return mb_type_desc_map[mb_type_].mb_part_pred_mode_1;
+}
+
+int MbTypeProxy::NumMbPart()
+{
+    return mb_type_desc_map[mb_type_].NumMbPart;
+}
+
+const char* MbTypeProxy::name()
+{
+    return mb_type_desc_map[mb_type_].name;
+}
+
 void MacroBlock::determine_mb_type()
 {
     if (slice_->is_I_slice()) {
@@ -939,6 +958,37 @@ void MacroBlock::determine_mb_type()
 
 void MacroBlock::parse_MacroBlock()
 {
+    int noSubMbPartSizeLessThan8x8Flag = 1;
+    int coded_block_pattern = 0;
+
     mb_type_ = rbsp_data_->read_ue();
     determine_mb_type();
+
+    if (mb_type_proxy_->mb_type() == MbType::I_PCM) {
+        while (!rbsp_data_->byte_aligned())
+            rbsp_data_->read_u1();
+
+        for (int i = 0; i < 256; i++) {
+            pcm_sample_luma.push_back(rbsp_data_->read_u(sps_->bit_depth_luma()));
+        }
+
+        for (int i = 0; i < 2 * sps_->MbHeightC() * sps_->MbWidthC(); i++) {
+            pcm_sample_chroma.push_back(rbsp_data_->read_u(sps_->bit_depth_chroma()));
+        }
+    } else {
+        if (mb_type_proxy_->mb_type() != MbType::I_NxN
+            && mb_type_proxy_->MbPartPredMode_0() != MbPartPredMode::Intra_16x16
+            && mb_type_proxy_->NumMbPart() == 4) {
+            // TODO
+        } else {
+            if (pps_->transform_8x8_mode_flag()
+                && mb_type_proxy_->mb_type() == MbType::I_NxN)
+                transform_size_8x8_flag_ = rbsp_data_->read_u1();
+            // mb_pred( mb_type )
+        }
+        if (mb_type_proxy_->MbPartPredMode_0() != MbPartPredMode::Intra_16x16) {
+            coded_block_pattern_ = rbsp_data_->read_me(
+                mb_type_proxy_->MbPartPredMode_0() != MbPartPredMode::Intra_4x4_Or_Intra_8x8);
+        }
+    }
 }

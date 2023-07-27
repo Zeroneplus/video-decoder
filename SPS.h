@@ -52,6 +52,16 @@ public:
     int offset_for_non_ref_pic() { return offset_for_non_ref_pic_; }
     int offset_for_top_to_bottom_field() { return offset_for_top_to_bottom_field_; }
 
+    int bit_depth_luma()
+    {
+        return bit_depth_luma_minus8_ + 8;
+    }
+
+    int bit_depth_chroma()
+    {
+        return bit_depth_chroma_minus8_ + 8;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* sps field */

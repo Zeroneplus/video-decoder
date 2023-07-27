@@ -73,6 +73,8 @@ public:
 
         uint32_t read_te(int range);
 
+        int read_me(bool is_Inter);
+
         void parse_nal_header();
 
         NalUnitType nal_unit_type()
