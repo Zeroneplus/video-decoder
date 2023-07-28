@@ -62,6 +62,11 @@ public:
         return bit_depth_chroma_minus8_ + 8;
     }
 
+    bool direct_8x8_inference_flag()
+    {
+        return direct_8x8_inference_flag_;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* sps field */

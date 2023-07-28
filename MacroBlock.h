@@ -2,6 +2,9 @@
 #include "NalUnit.h"
 
 class Slice;
+class Sps;
+class Pps;
+class MacroBlock;
 
 enum class MbType {
     // I
@@ -142,13 +145,7 @@ struct SubMbTypeDesc {
 class MbTypeProxy {
 public:
     MbTypeProxy() = default;
-    MbTypeProxy(enum MbType mb_type, Slice* slice)
-        : mb_type_(mb_type)
-        , slice_(slice)
-        , sps_(slice->get_sps())
-        , pps_(slice->get_pps())
-    {
-    }
+    MbTypeProxy(enum MbType mb_type, Slice* slice, MacroBlock* mb);
 
     enum MbType mb_type()
     {
@@ -157,13 +154,21 @@ public:
 
     enum MbPartPredMode MbPartPredMode_0();
     enum MbPartPredMode MbPartPredMode_1();
+
+    enum MbPartPredMode MbPartPredModeByIdx(int idx);
     int NumMbPart();
+
+    int CodedBlockPatternLuma();
+    int CodedBlockPatternChroma();
+
+    int Intra16x16PredMode();
 
     const char* name();
 
 private:
     enum MbType mb_type_ { MbType::NA };
     Slice* slice_ { nullptr };
+    MacroBlock* mb_;
     Sps* sps_;
     Pps* pps_;
 };
@@ -173,13 +178,7 @@ class MacroBlock {
 public:
     MacroBlock() = default;
 
-    MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data)
-        : slice_(slice)
-        , rbsp_data_(rbsp_data)
-        , sps_(slice->get_sps())
-        , pps_(slice->get_pps())
-    {
-    }
+    MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data);
 
     void parse_MacroBlock();
 
@@ -188,6 +187,25 @@ public:
     void parse_mb_pred();
 
     void parse_sub_mb_pred();
+
+    void parse_residual();
+
+    bool transform_size_8x8_flag()
+    {
+        return transform_size_8x8_flag_;
+    }
+
+    void set_coded_block_pattern();
+
+    int CodedBlockPatternLuma()
+    {
+        return CodedBlockPatternLuma_;
+    }
+
+    int CodedBlockPatternChroma()
+    {
+        return CodedBlockPatternChroma_;
+    }
 
 private:
     Slice* slice_;
@@ -200,9 +218,25 @@ private:
 
     MbTypeProxy mb_type_proxy_;
 
-    std::vector<int> pcm_sample_luma;
-    std::vector<int> pcm_sample_chroma;
+    std::vector<int> pcm_sample_luma_;
+    std::vector<int> pcm_sample_chroma_;
 
     int transform_size_8x8_flag_ = 0;
     int coded_block_pattern_ = 0;
+
+    int CodedBlockPatternLuma_ = 0;
+    int CodedBlockPatternChroma_ = 0;
+
+    int mb_qp_delta_ = 0;
+
+    int prev_intra4x4_pred_mode_flag_[16] = { 0 };
+    int rem_intra4x4_pred_mode_[16] = { 0 };
+
+    int prev_intra8x8_pred_mode_flag_[4] = { 0 };
+    int rem_intra8x8_pred_mode_[4] = { 0 };
+
+    int intra_chroma_pred_mode_ = 0;
+
+    int ref_idx_l0_[4] = { 0 };
+    int ref_idx_l1_[4] = { 0 };
 };

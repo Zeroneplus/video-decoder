@@ -327,6 +327,11 @@ public:
         return field_pic_flag_;
     }
 
+    bool mb_field_decoding_flag()
+    {
+        return mb_field_decoding_flag_;
+    }
+
     bool bottom_field_flag()
     {
         return bottom_field_flag_;
@@ -505,4 +510,6 @@ private:
     // yuv data
     std::vector<uint8_t> yuv_data_;
     uint8_t *y_data_, *u_data_, *v_data_;
+
+    int mb_field_decoding_flag_;
 };

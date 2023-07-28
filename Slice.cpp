@@ -1269,7 +1269,9 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
         prevMbSkipped = 0,
         mb_skip_run = 0;
 
-    int mb_field_decoding_flag = 0 /* now only consider frame mode */;
+    // only consider frame mode
+    // TODO: revisit the initial value of mb_field_decoding_flag_
+    mb_field_decoding_flag_ = field_pic_flag_;
 
     do {
         if (!is_I_slice() && !is_SI_slice()) {
@@ -1294,7 +1296,7 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
 
         if (moreDataFlag) {
             if (MbaffFrameFlag() && (CurrMbAddr % 2 == 0 || (CurrMbAddr % 2 == 1 && prevMbSkipped)))
-                mb_field_decoding_flag = rbsp_data_->read_ue();
+                mb_field_decoding_flag_ = rbsp_data_->read_ue();
 
             // parse macroblock
             std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_);
