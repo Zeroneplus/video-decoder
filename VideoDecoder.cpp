@@ -54,6 +54,7 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
         reference_picture_lists_construction(slice);
 
     // parse slice data
+    slice->parse_slice_data(this);
 
     // dec ref pic marking
     if (slice->is_reference_slice())

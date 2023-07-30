@@ -408,6 +408,10 @@ public:
         return pps_.get();
     }
 
+    void add_MacroBlock(int CurrMbAddr, std::shared_ptr<MacroBlock> mb);
+
+    // geometric method
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -512,4 +516,6 @@ private:
     uint8_t *y_data_, *u_data_, *v_data_;
 
     int mb_field_decoding_flag_;
+
+    std::map<int, std::shared_ptr<MacroBlock>> mb_map_;
 };

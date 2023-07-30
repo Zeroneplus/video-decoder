@@ -123,6 +123,9 @@ enum class SubMbType {
     B_L1_4x4,
     B_Bi_4x4,
     B_inferred,
+
+    // NA
+    NA = 200,
 };
 
 enum class SubMbPredMode {
@@ -155,7 +158,9 @@ public:
     enum MbPartPredMode MbPartPredMode_0();
     enum MbPartPredMode MbPartPredMode_1();
 
+    // this function should only be called in MacroBlock::parse_mb_pred()
     enum MbPartPredMode MbPartPredModeByIdx(int idx);
+
     int NumMbPart();
 
     int CodedBlockPatternLuma();
@@ -173,6 +178,31 @@ private:
     Pps* pps_;
 };
 
+class SubMbTypeProxy {
+
+public:
+    SubMbTypeProxy() = default;
+
+    SubMbTypeProxy(enum SubMbType sub_mb_type)
+        : sub_mb_type_(sub_mb_type)
+    {
+    }
+
+    SubMbTypeProxy& operator=(const SubMbTypeProxy&) = default;
+
+    int NumSubMbPart();
+
+    enum SubMbType sub_mb_type()
+    {
+        return sub_mb_type_;
+    }
+
+    enum SubMbPredMode TheSubMbPredMode();
+
+private:
+    enum SubMbType sub_mb_type_ { SubMbType::NA };
+};
+
 class MacroBlock {
 
 public:
@@ -188,14 +218,18 @@ public:
 
     void parse_sub_mb_pred();
 
-    void parse_residual();
+    void parse_residual(int startIdx, int endIdx);
 
     bool transform_size_8x8_flag()
     {
         return transform_size_8x8_flag_;
     }
 
-    void set_coded_block_pattern();
+    void set_coded_block_pattern()
+    {
+        CodedBlockPatternLuma_ = coded_block_pattern_ % 16;
+        CodedBlockPatternChroma_ = coded_block_pattern_ / 16;
+    }
 
     int CodedBlockPatternLuma()
     {
@@ -206,6 +240,13 @@ public:
     {
         return CodedBlockPatternChroma_;
     }
+
+    void residual_luma(int startIdx, int endIdx);
+
+    void residual_block(int* coeffLevel,
+        int startIdx,
+        int endIdx,
+        int maxNumCoeff);
 
 private:
     Slice* slice_;
@@ -223,6 +264,7 @@ private:
 
     int transform_size_8x8_flag_ = 0;
     int coded_block_pattern_ = 0;
+    int noSubMbPartSizeLessThan8x8Flag_ = 1;
 
     int CodedBlockPatternLuma_ = 0;
     int CodedBlockPatternChroma_ = 0;
@@ -235,8 +277,26 @@ private:
     int prev_intra8x8_pred_mode_flag_[4] = { 0 };
     int rem_intra8x8_pred_mode_[4] = { 0 };
 
-    int intra_chroma_pred_mode_ = 0;
+    int intra_chroma_pred_mode_ = INT32_MIN;
 
     int ref_idx_l0_[4] = { 0 };
     int ref_idx_l1_[4] = { 0 };
+
+    int mvd_l0_[4][4][2] = { 0 };
+    int mvd_l1_[4][4][2] = { 0 };
+
+    SubMbTypeProxy sub_mb_type_proxy_[4];
+
+    int i16x16DClevel_[16] = { 0 };
+    int i16x16AClevel_[16][15] = { 0 };
+    int level4x4_[16][16] = { 0 };
+    int level8x8_[4][64] = { 0 };
+
+    int (&Intra16x16DCLevel_)[16] = i16x16DClevel_;
+    int (&Intra16x16ACLevel_)[16][15] = i16x16AClevel_;
+    int (&LumaLevel4x4_)[16][16] = level4x4_;
+    int (&LumaLevel8x8_)[4][64] = level8x8_;
+
+    int ChromaDCLevel_[2][16] = { 0 };
+    int ChromaACLevel_[2][16][15] = { 0 };
 };

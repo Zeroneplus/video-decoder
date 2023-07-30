@@ -127,6 +127,8 @@ public:
     int FrameHeightInMbs() { return FrameHeightInMbs_; }
     int MbHeightC() { return 16 / SubHeightC_; }
     int MbWidthC() { return 16 / SubWidthC_; }
+    int SubWidthC() { return SubWidthC_; }
+    int SubHeightC() { return SubHeightC_; }
     int PicWidthInMbs() { return PicWidthInMbs_; }
     int PicWidthInSamplesL() { return PicWidthInSamplesL_; }
     int MaxFrameNum() { return MaxFrameNum_; }

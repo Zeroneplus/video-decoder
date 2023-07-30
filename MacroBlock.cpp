@@ -1,5 +1,6 @@
 
 #include "Slice.h"
+#include "spdlog/spdlog.h"
 
 namespace {
 
@@ -983,11 +984,10 @@ void MacroBlock::determine_mb_type()
 
 void MacroBlock::parse_MacroBlock()
 {
-    int noSubMbPartSizeLessThan8x8Flag = 1;
-    int coded_block_pattern = 0;
-
     mb_type_ = rbsp_data_->read_ue();
     determine_mb_type();
+
+    spdlog::warn("the MacroBlock type is {}", mb_type_proxy_.name());
 
     if (mb_type_proxy_.mb_type() == MbType::I_PCM) {
         while (!rbsp_data_->byte_aligned())
@@ -1006,7 +1006,15 @@ void MacroBlock::parse_MacroBlock()
         if (mb_type_proxy_.mb_type() != MbType::I_NxN
             && mb_type_proxy_.MbPartPredMode_0() != MbPartPredMode::Intra_16x16
             && mb_type_proxy_.NumMbPart() == 4) {
-            // TODO
+            parse_sub_mb_pred();
+            for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++) {
+                if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8) {
+                    if (sub_mb_type_proxy_[mbPartIdx].NumSubMbPart() > 1)
+                        noSubMbPartSizeLessThan8x8Flag_ = 0;
+
+                } else if (!sps_->direct_8x8_inference_flag())
+                    noSubMbPartSizeLessThan8x8Flag_ = 0;
+            }
         } else {
             if (pps_->transform_8x8_mode_flag()
                 && mb_type_proxy_.mb_type() == MbType::I_NxN)
@@ -1024,7 +1032,7 @@ void MacroBlock::parse_MacroBlock()
             if (mb_type_proxy_.CodedBlockPatternLuma() > 0
                 && pps_->transform_8x8_mode_flag()
                 && mb_type_proxy_.mb_type() != MbType::I_NxN
-                && noSubMbPartSizeLessThan8x8Flag
+                && noSubMbPartSizeLessThan8x8Flag_
                 && (mb_type_proxy_.mb_type() != MbType::B_Direct_16x16
                     || sps_->direct_8x8_inference_flag())) {
                 transform_size_8x8_flag_ = rbsp_data_->read_u1();
@@ -1035,7 +1043,7 @@ void MacroBlock::parse_MacroBlock()
             || mb_type_proxy_.CodedBlockPatternChroma()
             || mb_type_proxy_.MbPartPredMode_0() == MbPartPredMode::Intra_16x16) {
             mb_qp_delta_ = rbsp_data_->read_se();
-            parse_residual();
+            parse_residual(0, 15);
         }
     }
 }
@@ -1086,23 +1094,153 @@ void MacroBlock::parse_mb_pred()
 
             if ((slice_->num_ref_idx_l0_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
                 && mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) != MbPartPredMode::Pred_L1)
-                ref_idx_l0_[mbPartIdx] = rbsp_data_->read_te(100 /* may be safe? */);
+                // only consider frame mode
+                ref_idx_l0_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l0_active_minus1());
+        }
+
+        for (int mbPartIdx = 0; mbPartIdx < mb_type_proxy_.NumMbPart(); mbPartIdx++) {
+
+            if ((slice_->num_ref_idx_l1_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
+                && mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) != MbPartPredMode::Pred_L0)
+                ref_idx_l1_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l1_active_minus1());
+        }
+
+        for (int mbPartIdx = 0; mbPartIdx < mb_type_proxy_.NumMbPart(); mbPartIdx++) {
+            if (mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) != MbPartPredMode::Pred_L1)
+                for (int compIdx = 0; compIdx < 2; compIdx++)
+                    mvd_l0_[mbPartIdx][0][compIdx] = rbsp_data_->read_se();
+        }
+
+        for (int mbPartIdx = 0; mbPartIdx < mb_type_proxy_.NumMbPart(); mbPartIdx++) {
+            if (mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) != MbPartPredMode::Pred_L0)
+                for (int compIdx = 0; compIdx < 2; compIdx++)
+                    mvd_l1_[mbPartIdx][0][compIdx] = rbsp_data_->read_se();
         }
     }
 }
 
+enum SubMbPredMode SubMbTypeProxy::TheSubMbPredMode()
+{
+    return sub_mb_type_desc_map[sub_mb_type_].sub_mb_part_pred_mode;
+}
+
+int SubMbTypeProxy::NumSubMbPart()
+{
+    return sub_mb_type_desc_map[sub_mb_type_].NumSubMbPart;
+}
+
 void MacroBlock::parse_sub_mb_pred()
 {
+    for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
+        sub_mb_type_proxy_[mbPartIdx] = SubMbTypeProxy { static_cast<enum SubMbType>(rbsp_data_->read_ue()) };
+
+    for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
+        if ((slice_->num_ref_idx_l0_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
+            && mb_type_proxy_.mb_type() != MbType::P_8x8ref0
+            && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
+            && sub_mb_type_proxy_[mbPartIdx].TheSubMbPredMode() != SubMbPredMode::Pred_L1)
+            ref_idx_l0_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l0_active_minus1());
+
+    for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
+        if ((slice_->num_ref_idx_l1_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
+            && mb_type_proxy_.mb_type() != MbType::P_8x8ref0
+            && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
+            && sub_mb_type_proxy_[mbPartIdx].TheSubMbPredMode() != SubMbPredMode::Pred_L0)
+            ref_idx_l1_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l1_active_minus1());
+
+    for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
+        if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
+            && sub_mb_type_proxy_[mbPartIdx].TheSubMbPredMode() != SubMbPredMode::Pred_L1)
+            for (int subMbPartIdx = 0;
+                 subMbPartIdx < sub_mb_type_proxy_[mbPartIdx].NumSubMbPart();
+                 subMbPartIdx++)
+                for (int compIdx = 0; compIdx < 2; compIdx++)
+                    mvd_l0_[mbPartIdx][subMbPartIdx][compIdx] = rbsp_data_->read_se();
+
+    for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
+        if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
+            && sub_mb_type_proxy_[mbPartIdx].TheSubMbPredMode() != SubMbPredMode::Pred_L0)
+            for (int subMbPartIdx = 0;
+                 subMbPartIdx < sub_mb_type_proxy_[mbPartIdx].NumSubMbPart();
+                 subMbPartIdx++)
+                for (int compIdx = 0; compIdx < 2; compIdx++)
+                    mvd_l1_[mbPartIdx][subMbPartIdx][compIdx] = rbsp_data_->read_se();
 }
 
-void MacroBlock::parse_residual()
+void MacroBlock::parse_residual(int startIdx, int endIdx)
+{
+    // only consider cavlc coding
+
+    residual_luma(startIdx, endIdx);
+
+    if (sps_->ChromaArrayType() == 1 || sps_->ChromaArrayType() == 2) {
+        int NumC8x8 = 4 / (sps_->SubWidthC() * sps_->SubHeightC());
+        for (int iCbCr = 0; iCbCr < 2; iCbCr++)
+            if ((mb_type_proxy_.CodedBlockPatternChroma() & 3) && startIdx == 0)
+                residual_block(ChromaDCLevel_[iCbCr], 0, 4 * NumC8x8 - 1, 4 * NumC8x8);
+            else {
+                // for (int i = 0; i < 4 * NumC8x8; i++)
+                //     ChromaDCLevel_[iCbCr][i] = 0;
+            }
+
+        for (int iCbCr = 0; iCbCr < 2; iCbCr++)
+            for (int i8x8 = 0; i8x8 < NumC8x8; i8x8++)
+                for (int i4x4 = 0; i4x4 < 4; i4x4++)
+                    if (mb_type_proxy_.CodedBlockPatternChroma() & 2)
+                        residual_block(ChromaACLevel_[iCbCr][i8x8 * 4 + i4x4],
+                            std::max(0, startIdx - 1), endIdx - 1, 15);
+                    else {
+                        // for (int i = 0; i < 15; i++)
+                        //     ChromaACLevel_[iCbCr][i8x8 * 4 + i4x4][i] = 0;
+                    }
+
+    } else if (sps_->ChromaArrayType() == 3) {
+        // TODO
+    }
+}
+
+// cavlc coding
+void MacroBlock::residual_block(int* coeffLevel,
+    int startIdx,
+    int endIdx,
+    int maxNumCoeff)
 {
 }
 
-void MacroBlock::set_coded_block_pattern()
+void MacroBlock::residual_luma(int startIdx, int endIdx)
 {
-    CodedBlockPatternLuma_ = coded_block_pattern_ % 16;
-    CodedBlockPatternChroma_ = coded_block_pattern_ / 16;
+    if (startIdx == 0
+        && mb_type_proxy_.MbPartPredMode_0() == MbPartPredMode::Intra_16x16)
+        residual_block(i16x16DClevel_, 0, 15, 16);
+
+    for (int i8x8 = 0; i8x8 < 4; i8x8++) {
+        if (!transform_size_8x8_flag_ || !pps_->entropy_coding_mode())
+            for (int i4x4 = 0; i4x4 < 4; i4x4++) {
+                if (mb_type_proxy_.CodedBlockPatternLuma() & (1 << i8x8))
+                    if (mb_type_proxy_.MbPartPredMode_0() == MbPartPredMode::Intra_16x16)
+                        residual_block(i16x16AClevel_[i8x8 * 4 + i4x4],
+                            std::max(0, startIdx - 1), endIdx - 1, 15);
+                    else
+                        residual_block(level4x4_[i8x8 * 4 + i4x4], startIdx, endIdx, 16);
+                else if (mb_type_proxy_.MbPartPredMode_0() == MbPartPredMode::Intra_16x16) {
+                    // for (int i = 0; i < 15; i++)
+                    //     i16x16AClevel_[i8x8 * 4 + i4x4][i] = 0;
+                } else {
+                    // for (int i = 0; i < 16; i++)
+                    //     level4x4_[i8x8 * 4 + i4x4][i] = 0;
+                }
+                if (!pps_->entropy_coding_mode() && transform_size_8x8_flag_)
+                    for (int i = 0; i < 16; i++)
+                        level8x8_[i8x8][4 * i + i4x4] = level4x4_[i8x8 * 4 + i4x4][i];
+            }
+        else if (mb_type_proxy_.CodedBlockPatternLuma() & (1 << i8x8)) {
+            // TODO cabac coding
+            residual_block(level8x8_[i8x8], 4 * startIdx, 4 * endIdx + 3, 64);
+        } else {
+            // for (int i = 0; i < 64; i++)
+            //     level8x8_[i8x8][i] = 0;
+        }
+    }
 }
 
 int MbTypeProxy::CodedBlockPatternLuma()

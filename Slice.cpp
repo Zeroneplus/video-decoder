@@ -1301,6 +1301,7 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
             // parse macroblock
             std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_);
             mb->parse_MacroBlock();
+            add_MacroBlock(CurrMbAddr, mb);
         }
 
         if (!pps_->entropy_coding_mode())
@@ -1313,4 +1314,15 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
     } while (moreDataFlag);
 
     return 0;
+}
+
+void Slice::add_MacroBlock(int CurrMbAddr, std::shared_ptr<MacroBlock> mb)
+{
+    auto it = mb_map_.find(CurrMbAddr);
+    if (it != mb_map_.end()) {
+        mb_map_.erase(it);
+        spdlog::warn("will remove an exist mb and insert a new mb");
+    }
+
+    mb_map_.insert(std::make_pair(CurrMbAddr, mb));
 }
