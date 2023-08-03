@@ -104,6 +104,11 @@ public:
             return false;
         }
 
+        bool slice_data_partitioning_is_in_use()
+        {
+            return nal_unit_type_ <= 4 && nal_unit_type_ >= 2;
+        }
+
     private:
         std::vector<uint8_t> buf;
         uint8_t* start;

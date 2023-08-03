@@ -6,6 +6,17 @@ class Sps;
 class Pps;
 class MacroBlock;
 
+enum class ResidualType {
+    i16x16DClevel,
+    i16x16AClevel,
+    ChromaDCLevel_Cb,
+    ChromaDCLevel_Cr,
+    ChromaACLevel_Cb,
+    ChromaACLevel_Cr,
+    level4x4,
+    level8x8, // unused in cavlc
+};
+
 enum class MbType {
     // I
     I_NxN = 0,
@@ -170,12 +181,29 @@ public:
 
     const char* name();
 
+    int MbPartWidth();
+    int MbPartHeight();
+
+    bool is_intra_pred();
+
+    // P_Skip is not partitioned
+    //
+    // B_Skip and B_Direct_16x16 are partitioned but do not have NumMbPart()
+    bool no_subMbPartIdx()
+    {
+        return mb_type_ != MbType::P_8x8
+            && mb_type_ != MbType::P_8x8ref0
+            && mb_type_ != MbType::B_8x8
+            && mb_type_ != MbType::B_Skip
+            && mb_type_ != MbType::B_Direct_16x16;
+    }
+
 private:
     enum MbType mb_type_ { MbType::NA };
     Slice* slice_ { nullptr };
-    MacroBlock* mb_;
-    Sps* sps_;
-    Pps* pps_;
+    MacroBlock* mb_ { nullptr };
+    Sps* sps_ { nullptr };
+    Pps* pps_ { nullptr };
 };
 
 class SubMbTypeProxy {
@@ -192,12 +220,15 @@ public:
 
     int NumSubMbPart();
 
+    int SubMbPartWidth();
+    int SubMbPartHeight();
+
     enum SubMbType sub_mb_type()
     {
         return sub_mb_type_;
     }
 
-    enum SubMbPredMode TheSubMbPredMode();
+    enum SubMbPredMode SubMbPredMode();
 
 private:
     enum SubMbType sub_mb_type_ { SubMbType::NA };
@@ -208,7 +239,7 @@ class MacroBlock {
 public:
     MacroBlock() = default;
 
-    MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data);
+    MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data, int CurrMbAddr);
 
     void parse_MacroBlock();
 
@@ -246,7 +277,36 @@ public:
     void residual_block(int* coeffLevel,
         int startIdx,
         int endIdx,
-        int maxNumCoeff);
+        int maxNumCoeff,
+        enum ResidualType,
+        int BlkIdx);
+
+    int InverseRasterScan(int a, int b, int c, int d, int e)
+    {
+        if (e == 0)
+            return (a % (d / b)) * b;
+        else if (e == 1)
+            return (a / (d / b)) * c;
+        return INT32_MIN;
+    }
+
+    std::pair<int, int> Inverse_macroblock_partition_scanning_process(int mbPartIdx);
+    std::pair<int, int> Inverse_sub_macroblock_partition_scanning_process(int mbPartIdx, int subMbPartIdx);
+
+    bool is_intra_pred();
+
+    std::tuple<int, int>
+    Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(int xP, int yP);
+
+    std::tuple<std::tuple<int, int, int>,
+        std::tuple<int, int, int>,
+        std::tuple<int, int, int>,
+        std::tuple<int, int, int>>
+    Derivation_process_for_neighbouring_partitions(int mbPartIdx, int subMbPartIdx);
+
+    int get_nN(int idx, bool is_luma, int chroma_idx);
+
+    bool not_available_due_to_constrained_intra(int mbAddrN);
 
 private:
     Slice* slice_;
@@ -255,11 +315,13 @@ private:
     Sps* sps_;
     Pps* pps_;
 
+    int CurrMbAddr_;
+
     int mb_type_ { INT32_MIN };
 
     MbTypeProxy mb_type_proxy_;
 
-    std::vector<int> pcm_sample_luma_;
+    int pcm_sample_luma_[256] = { 0 };
     std::vector<int> pcm_sample_chroma_;
 
     int transform_size_8x8_flag_ = 0;
@@ -292,6 +354,9 @@ private:
     int level4x4_[16][16] = { 0 };
     int level8x8_[4][64] = { 0 };
 
+    std::vector<int> i16x16AClevel_non_zeros_ { std::vector<int>(16, INT32_MIN) };
+    std::vector<int> level4x4_non_zeros_ { std::vector<int>(16, INT32_MIN) };
+
     int (&Intra16x16DCLevel_)[16] = i16x16DClevel_;
     int (&Intra16x16ACLevel_)[16][15] = i16x16AClevel_;
     int (&LumaLevel4x4_)[16][16] = level4x4_;
@@ -299,4 +364,8 @@ private:
 
     int ChromaDCLevel_[2][16] = { 0 };
     int ChromaACLevel_[2][16][15] = { 0 };
+
+    std::vector<std::vector<int>> ChromaACLevel_non_zeros_ {
+        std::vector<std::vector<int>>(2, std::vector<int>(16, INT32_MIN))
+    };
 };

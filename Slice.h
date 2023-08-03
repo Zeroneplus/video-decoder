@@ -411,6 +411,46 @@ public:
     void add_MacroBlock(int CurrMbAddr, std::shared_ptr<MacroBlock> mb);
 
     // geometric method
+    int InverseRasterScan(int a, int b, int c, int d, int e)
+    {
+        if (e == 0)
+            return (a % (d / b)) * b;
+        else if (e == 1)
+            return (a / (d / b)) * c;
+        return INT32_MIN;
+    }
+
+    std::pair<int, int> Inverse_macroblock_scanning_process(int mbAddr);
+
+    int get_cavlc_nC_for_luma(int CurrMbAddr, int BlkIdx);
+
+    std::pair<int, int> Inverse_4x4_luma_block_scanning_process(int luma4x4BlkIdx);
+
+    std::pair<int, int> Inverse_4x4_chroma_block_scanning_process(int chroma4x4BlkIdx);
+
+    std::tuple<int, int, int, int>
+    Derivation_process_for_neighbouring_macroblock_addresses_and_their_availability(int CurrMbAddr);
+
+    // mbAddrN xW yW
+    std::tuple<int, int, int>
+    Derivation_process_for_neighbouring_locations(int CurrMbAddr, int xN, int yN, bool is_luma);
+
+    std::pair<int, int>
+    Derivation_process_for_neighbouring_macroblocks(int CurrMbAddr, bool is_luma);
+
+    std::tuple<int, int, int, int>
+    Derivation_process_for_neighbouring_4x4_luma_blocks(int CurrMbAddr, int luma4x4BlkIdx);
+
+    std::tuple<int, int, int, int>
+    Derivation_process_for_neighbouring_4x4_chroma_blocks(int CurrMbAddr, int chroma4x4BlkIdx);
+
+    int Derivation_process_for_4x4_luma_block_indices(int xP, int yP);
+
+    int Derivation_process_for_4x4_chroma_block_indices(int xP, int yP);
+
+    MacroBlock& get_mb_by_addr(int addr);
+
+    bool mb_availability(int mbAddr, int CurrMbAddr);
 
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;

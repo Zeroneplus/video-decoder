@@ -388,6 +388,7 @@ int32_t NalUnit::RbspData::read_se()
 uint32_t NalUnit::RbspData::read_te(int range)
 {
     uint32_t b = 0;
+    int ret;
 
     if (range <= 0)
         return 0;
@@ -397,7 +398,11 @@ uint32_t NalUnit::RbspData::read_te(int range)
         return b == 0 ? 1 : 0;
     }
 
-    return read_ue();
+    ret = read_ue();
+
+    assert(ret <= range);
+
+    return ret;
 }
 
 int NalUnit::RbspData::read_me(bool is_Inter)

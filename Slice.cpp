@@ -1282,6 +1282,7 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
                 for (int i = 0; i < mb_skip_run; i++) {
 
                     // TODO: process skipped mb
+                    // be care when both top and bottom of a mb pair are skipped
 
                     CurrMbAddr = NextMbAddress(CurrMbAddr);
                 }
@@ -1299,9 +1300,10 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
                 mb_field_decoding_flag_ = rbsp_data_->read_ue();
 
             // parse macroblock
-            std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_);
-            mb->parse_MacroBlock();
+            std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_, CurrMbAddr);
+            // add MacroBlock first, though it hasnt been parsed
             add_MacroBlock(CurrMbAddr, mb);
+            mb->parse_MacroBlock();
         }
 
         if (!pps_->entropy_coding_mode())
@@ -1325,4 +1327,243 @@ void Slice::add_MacroBlock(int CurrMbAddr, std::shared_ptr<MacroBlock> mb)
     }
 
     mb_map_.insert(std::make_pair(CurrMbAddr, mb));
+}
+
+// 6.4.1 Inverse macroblock scanning process
+std::pair<int, int> Slice::Inverse_macroblock_scanning_process(int mbAddr)
+{
+    // If MbaffFrameFlag is equal to 0
+    int x = InverseRasterScan(mbAddr, 16, 16, sps_->PicWidthInSamplesL(), 0);
+    int y = InverseRasterScan(mbAddr, 16, 16, sps_->PicWidthInSamplesL(), 1);
+
+    // else TODO
+
+    return { x, y };
+}
+
+// 6.4.3 Inverse 4x4 luma block scanning process
+std::pair<int, int> Slice::Inverse_4x4_luma_block_scanning_process(int luma4x4BlkIdx)
+{
+    int x = InverseRasterScan(luma4x4BlkIdx / 4, 8, 8, 16, 0) + InverseRasterScan(luma4x4BlkIdx % 4, 4, 4, 8, 0);
+    int y = InverseRasterScan(luma4x4BlkIdx / 4, 8, 8, 16, 1) + InverseRasterScan(luma4x4BlkIdx % 4, 4, 4, 8, 1);
+    return { x, y };
+}
+
+// TODO: what if 4:2:2 and 4:4:4 format?
+// it seems that 6.4.7 only works for 4:2:0 and 4:2:2，4:4:4 chroma should use 6.4.3
+//
+// 6.4.7 Inverse 4x4 chroma block scanning process
+std::pair<int, int> Slice::Inverse_4x4_chroma_block_scanning_process(int chroma4x4BlkIdx)
+{
+    int x = InverseRasterScan(chroma4x4BlkIdx, 4, 4, 8, 0);
+    int y = InverseRasterScan(chroma4x4BlkIdx, 4, 4, 8, 1);
+    return { x, y };
+}
+
+// 6.4.8 Derivation process of the availability for macroblock addresses
+//
+bool Slice::mb_availability(int mbAddr, int CurrMbAddr)
+{
+    if (mbAddr < 0 || mbAddr > CurrMbAddr)
+        return false;
+
+    // slice group is not considered
+
+    return true;
+}
+
+// for simplicity, if mbAddrN < 0 or mbAddrN > CurrMbAddr, then unavailable
+//
+// 6.4.9 Derivation process for neighbouring macroblock addresses and their availability
+std::tuple<int, int, int, int>
+Slice::Derivation_process_for_neighbouring_macroblock_addresses_and_their_availability(int CurrMbAddr)
+{
+    int mbAddrA = INT32_MIN,
+        mbAddrB = INT32_MIN,
+        mbAddrC = INT32_MIN,
+        mbAddrD = INT32_MIN;
+
+    if (CurrMbAddr % sps_->PicWidthInMbs() != 0)
+        mbAddrA = CurrMbAddr - 1;
+
+    mbAddrB = CurrMbAddr - sps_->PicWidthInMbs();
+
+    if ((CurrMbAddr + 1) % sps_->PicWidthInMbs() != 0)
+        mbAddrC = CurrMbAddr - sps_->PicWidthInMbs() + 1;
+
+    if (CurrMbAddr % sps_->PicWidthInMbs() != 0)
+        mbAddrD = CurrMbAddr - sps_->PicWidthInMbs() - 1;
+
+    // INT32_MIN is unavailable.
+    // TODO: less than 0 may be more suitable?
+    mbAddrA = mb_availability(mbAddrA, CurrMbAddr) ? mbAddrA : INT32_MIN;
+    mbAddrB = mb_availability(mbAddrB, CurrMbAddr) ? mbAddrB : INT32_MIN;
+    mbAddrC = mb_availability(mbAddrC, CurrMbAddr) ? mbAddrC : INT32_MIN;
+    mbAddrD = mb_availability(mbAddrD, CurrMbAddr) ? mbAddrD : INT32_MIN;
+
+    return { mbAddrA, mbAddrB, mbAddrC, mbAddrD };
+}
+
+/*
+N    xD               yD
+A    −1               0
+B    0                −1
+C    predPartWidth    −1
+D    −1               −1 
+*/
+
+// 6.4.11.1 Derivation process for neighbouring macroblocks
+std::pair<int, int>
+Slice::Derivation_process_for_neighbouring_macroblocks(int CurrMbAddr, bool is_luma)
+{
+    int mbAddrA = std::get<0>(Derivation_process_for_neighbouring_locations(CurrMbAddr, -1, 0, is_luma));
+    int mbAddrB = std::get<0>(Derivation_process_for_neighbouring_locations(CurrMbAddr, 0, -1, is_luma));
+
+    return { mbAddrA, mbAddrB };
+}
+
+// 6.4.11.4 Derivation process for neighbouring 4x4 luma blocks
+std::tuple<int, int, int, int>
+Slice::Derivation_process_for_neighbouring_4x4_luma_blocks(int CurrMbAddr, int luma4x4BlkIdx)
+{
+    int mbAddrA = INT32_MIN;
+    int luma4x4BlkIdxA = INT32_MIN;
+    int mbAddrB = INT32_MIN;
+    int luma4x4BlkIdxB = INT32_MIN;
+
+    auto func = [this, CurrMbAddr, luma4x4BlkIdx](int xD, int yD) -> std::pair<int, int> {
+        auto [x, y] = Inverse_4x4_luma_block_scanning_process(luma4x4BlkIdx);
+        int xN = x + xD;
+        int yN = y + yD;
+        auto [mbAddrN, xW, yW] = Derivation_process_for_neighbouring_locations(CurrMbAddr, xN, yN, true);
+        if (mbAddrN == INT32_MIN) // is this safe?
+            return { INT32_MIN, INT32_MIN };
+        int ret_luma4x4BlkIdx = Derivation_process_for_4x4_luma_block_indices(xW, yW);
+        return { mbAddrN, ret_luma4x4BlkIdx };
+    };
+
+    // A
+    auto tmpA = func(-1, 0);
+    mbAddrA = tmpA.first;
+    luma4x4BlkIdxA = tmpA.second;
+
+    // B
+    auto tmpB = func(0, -1);
+    mbAddrB = tmpB.first;
+    luma4x4BlkIdxB = tmpB.second;
+
+    return { mbAddrA, luma4x4BlkIdxA, mbAddrB, luma4x4BlkIdxB };
+}
+
+// this function works for 4:2:2 and 4:4:4 only if Inverse_4x4_chroma_block_scanning_process()
+// and Derivation_process_for_4x4_chroma_block_indices() work for 4:2:2 and 4:4:4
+//
+// 6.4.11.5 Derivation process for neighbouring 4x4 chroma blocks
+std::tuple<int, int, int, int>
+Slice::Derivation_process_for_neighbouring_4x4_chroma_blocks(int CurrMbAddr, int chroma4x4BlkIdx)
+{
+    int mbAddrA = INT32_MIN;
+    int chroma4x4BlkIdxA = INT32_MIN;
+    int mbAddrB = INT32_MIN;
+    int chroma4x4BlkIdxB = INT32_MIN;
+
+    auto func = [this, CurrMbAddr, chroma4x4BlkIdx](int xD, int yD) -> std::pair<int, int> {
+        auto [x, y] = Inverse_4x4_chroma_block_scanning_process(chroma4x4BlkIdx);
+        int xN = x + xD;
+        int yN = y + yD;
+        auto [mbAddrN, xW, yW] = Derivation_process_for_neighbouring_locations(CurrMbAddr, xN, yN, false);
+        if (mbAddrN == INT32_MIN) // is this safe?
+            return { INT32_MIN, INT32_MIN };
+        int ret_chroma4x4BlkIdx = Derivation_process_for_4x4_chroma_block_indices(xW, yW);
+        return { mbAddrN, ret_chroma4x4BlkIdx };
+    };
+
+    // A
+    auto tmpA = func(-1, 0);
+    mbAddrA = tmpA.first;
+    chroma4x4BlkIdxA = tmpA.second;
+
+    // B
+    auto tmpB = func(0, -1);
+    mbAddrB = tmpB.first;
+    chroma4x4BlkIdxB = tmpB.second;
+
+    return { mbAddrA, chroma4x4BlkIdxA, mbAddrB, chroma4x4BlkIdxB };
+}
+
+// 6.4.13.1 Derivation process for 4x4 luma block indices
+int Slice::Derivation_process_for_4x4_luma_block_indices(int xP, int yP)
+{
+    int luma4x4BlkIdx = 8 * (yP / 8) + 4 * (xP / 8) + 2 * ((yP % 8) / 4) + ((xP % 8) / 4);
+    return luma4x4BlkIdx;
+}
+
+// this process may only work for 4:2:0 and 4:2:2
+// 4:4:4 should use 6.4.13.1, but ITU Rec does not
+// specify this
+//
+// 6.4.13.2 Derivation process for 4x4 chroma block indices
+int Slice::Derivation_process_for_4x4_chroma_block_indices(int xP, int yP)
+{
+    int chroma4x4BlkIdx = 2 * (yP / 4) + (xP / 4);
+    return chroma4x4BlkIdx;
+}
+
+// 6.4.12.1 Specification for neighbouring locations in fields and non-MBAFF frames
+// mbAddrN xW yW
+std::tuple<int, int, int>
+Slice::Derivation_process_for_neighbouring_locations(int CurrMbAddr,
+    int xN,
+    int yN,
+    bool is_luma)
+{
+    int maxW, maxH;
+    int mbAddrN = INT32_MIN;
+    int xW = INT32_MIN,
+        yW = INT32_MIN;
+
+    if (is_luma) {
+        maxW = 16;
+        maxH = 16;
+    } else {
+        maxW = sps_->MbWidthC();
+        maxH = sps_->MbHeightC();
+    }
+
+    // only consider frame mode
+
+    auto [mbAddrA,
+        mbAddrB,
+        mbAddrC,
+        mbAddrD]
+        = Derivation_process_for_neighbouring_macroblock_addresses_and_their_availability(CurrMbAddr);
+
+    if (xN < 0 && yN < 0)
+        mbAddrN = mbAddrD;
+    else if (xN < 0 && yN >= 0 && yN <= maxH - 1)
+        mbAddrN = mbAddrA;
+    else if (xN >= 0 && xN <= maxW - 1 && yN < 0)
+        mbAddrN = mbAddrB;
+    else if (xN >= 0 && xN <= maxW - 1 && yN >= 0 && yN <= maxH - 1)
+        mbAddrN = CurrMbAddr;
+    else if (xN > maxW - 1 && yN < 0)
+        mbAddrN = mbAddrC;
+    else {
+        // not available
+        assert(false);
+    }
+
+    if (mbAddrN != INT32_MIN) { // is this safe? yes
+        xW = (xN + maxW) % maxW;
+        yW = (yN + maxH) % maxH;
+    }
+    return { mbAddrN, xW, yW };
+}
+
+MacroBlock& Slice::get_mb_by_addr(int addr)
+{
+    if (mb_map_.find(addr) == mb_map_.end()) {
+        assert(false);
+    }
+    return *mb_map_[addr];
 }

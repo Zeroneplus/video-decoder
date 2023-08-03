@@ -75,6 +75,11 @@ public:
         return transform_8x8_mode_flag_;
     }
 
+    bool constrained_intra_pred_flag()
+    {
+        return constrained_intra_pred_flag_;
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     /* pps field */
