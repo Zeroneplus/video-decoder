@@ -6,6 +6,8 @@
 #include <iostream>
 #include <utility>
 
+#include "spdlog/spdlog.h"
+
 #include "NalUnit.h"
 
 struct CodedBlockPatternMap {
@@ -275,48 +277,48 @@ enum NalUnitType int_to_nal_unit_type(int num)
 }
 
 NalUnit::NalUnit(int size)
-    : buf(malloc(size))
-    , data_size(size)
+    : buf_(malloc(size))
+    , data_size_(size)
 {
 }
 
 NalUnit::~NalUnit()
 {
-    if (buf)
-        free(buf);
+    if (buf_)
+        free(buf_);
 }
 
 void NalUnit::copy(void* addr)
 {
-    memcpy(buf, addr, data_size);
+    memcpy(buf_, addr, data_size_);
 }
 
 NalUnit::RbspData::RbspData(std::vector<uint8_t> input_buf)
-    : buf(std::move(input_buf))
-    , start(buf.data())
-    , p(buf.data())
-    , end(start + buf.size())
-    , bits_left(8)
+    : buf_(std::move(input_buf))
+    , start_(buf_.data())
+    , p_(buf_.data())
+    , end_(start_ + buf_.size())
+    , bits_left_(8)
     , nal_ref_idc_(-1)
     , nal_unit_type_(NalUnitType::Unspecified)
     , idr_pic_flag_(false)
 {
-    if (buf.empty())
-        std::cout << "the Rbsp Data is empty" << std::endl;
+    if (buf_.empty())
+        spdlog::warn("the Rbsp Data is empty");
 }
 
 uint32_t NalUnit::RbspData::read_u1()
 {
     uint32_t r = 0;
     if (!eof()) {
-        bits_left--;
-        r = ((*p) >> bits_left) & 0x01;
-        if (bits_left == 0) {
-            p++;
-            bits_left = 8;
+        bits_left_--;
+        r = ((*p_) >> bits_left_) & 0x01;
+        if (bits_left_ == 0) {
+            p_++;
+            bits_left_ = 8;
         }
     } else if (!disable_over_read_warn) {
-        std::cout << "read_u1 after eof" << std::endl;
+        spdlog::warn("read_u1 after eof");
     }
     return r;
 }
@@ -324,39 +326,39 @@ uint32_t NalUnit::RbspData::read_u1()
 void NalUnit::RbspData::skip_u1()
 {
     if (!eof()) {
-        bits_left--;
-        if (bits_left == 0) {
-            p++;
-            bits_left = 8;
+        bits_left_--;
+        if (bits_left_ == 0) {
+            p_++;
+            bits_left_ = 8;
         }
     } else {
-        std::cout << "skip_u1 after eof" << std::endl;
+        spdlog::warn("skip_u1 after eof");
     }
 }
 
 uint32_t NalUnit::RbspData::peek_u1()
 {
     uint32_t r = 0;
-    int shift = bits_left - 1;
+    int shift = bits_left_ - 1;
     if (!eof()) {
-        r = ((*p) >> shift) & 0x01;
+        r = ((*p_) >> shift) & 0x01;
     } else {
-        std::cout << "peek_u1 after eof" << std::endl;
+        spdlog::warn("peek_u1 after eof");
     }
     return r;
 }
 
 uint32_t NalUnit::RbspData::peek_u(int n)
 {
-    uint8_t* tmp_p = p;
-    int tmp_bits_left = bits_left;
+    uint8_t* tmp_p = p_;
+    int tmp_bits_left = bits_left_;
 
     disable_over_read_warn = true;
     int ret = read_u(n);
     disable_over_read_warn = false;
 
-    p = tmp_p;
-    bits_left = tmp_bits_left;
+    p_ = tmp_p;
+    bits_left_ = tmp_bits_left;
 
     return ret;
 }
@@ -384,7 +386,7 @@ uint32_t NalUnit::RbspData::read_ue()
     while ((read_u1() == 0) && (i < 32) && !eof())
         i++;
     if (eof()) {
-        std::cout << "read_ue after eof" << std::endl;
+        spdlog::warn("read_ue after eof");
         return r;
     }
     r = read_u(i);
@@ -448,13 +450,13 @@ bool NalUnit::RbspData::more_rbsp_data()
     if (eof())
         return false;
 
-    if (p < end - 1)
+    if (p_ < end_ - 1)
         return true;
 
-    int mask = (1 << bits_left) - 1;
-    int s = 1 << (bits_left - 1);
+    int mask = (1 << bits_left_) - 1;
+    int s = 1 << (bits_left_ - 1);
 
-    if (s == ((*p) & mask))
+    if (s == ((*p_) & mask))
         return false;
     else
         return true;
@@ -465,7 +467,7 @@ void NalUnit::RbspData::parse_nal_header()
     int forbidden_zero_bit = read_u1();
 
     if (forbidden_zero_bit)
-        std::cout << "forbidden_zero_bit is not equal to 0." << std::endl;
+        spdlog::warn("forbidden_zero_bit is not equal to 0.");
 
     nal_ref_idc_ = read_u(2);
     nal_unit_type_ = int_to_nal_unit_type(read_u(5));
@@ -473,18 +475,20 @@ void NalUnit::RbspData::parse_nal_header()
     idr_pic_flag_ = (nal_unit_type_ == 5) ? true : false;
 
     if (nal_unit_type_ == 14 || nal_unit_type_ == 20) {
-        std::cout << "This nal_unit_type is currently unsupported." << std::endl;
+        spdlog::error("This nal_unit_type is currently unsupported.");
+        assert(false);
     }
 
-    // std::cout << "forbidden_zero_bit " << forbidden_zero_bit << ", "
-    //           << "nal_ref_idc " << nal_ref_idc_ << ", "
-    //           << "nal_unit_type " << nal_unit_type_to_char(nal_unit_type_) << "." << std::endl;
+    spdlog::trace("forbidden_zero_bit {}, nal_ref_idc {}, nal_unit_type {}.",
+        forbidden_zero_bit,
+        nal_ref_idc_,
+        nal_unit_type_to_char(nal_unit_type_));
 }
 
 std::shared_ptr<NalUnit::RbspData> NalUnit::parse()
 {
-    uint8_t* start = static_cast<uint8_t*>(buf);
-    int size = data_size;
+    uint8_t* start = static_cast<uint8_t*>(buf_);
+    int size = data_size_;
     int increment = 0;
 
     while (*start == 0) {
@@ -498,24 +502,24 @@ std::shared_ptr<NalUnit::RbspData> NalUnit::parse()
         ++increment;
         --size;
     } else {
-        std::cout << "cannot find 0x01" << std::endl;
+        spdlog::error("cannot find 0x01");
         return nullptr;
     }
 
     if (size <= 0) {
-        std::cout << "after remove the start code, data size <= 0" << std::endl;
+        spdlog::error("after remove the start code, data size <= 0");
         return nullptr;
     }
 
     if (increment != 3 && increment != 4) {
-        std::cout << "the size of the start code is not 3 or 4" << std::endl;
+        spdlog::error("the size of the start code is not 3 or 4");
         return nullptr;
     }
 
     if (size >= 2 && *(start + size - 1) == 3
         && *(start + size - 2) == 0) {
         --size;
-        std::cout << "will remove the last byte for 0x00 0x03 in cabac mode" << std::endl;
+        spdlog::warn("will remove the last byte for 0x00 0x03 in cabac mode");
     }
 
     std::vector<uint8_t> tmp(size);
@@ -534,7 +538,7 @@ std::shared_ptr<NalUnit::RbspData> NalUnit::parse()
     tmp.resize(k);
     //    uint8_t* v = tmp.data();
     //    int ss = k + 1;
-    //    std::cout << "ss size is " << ss << std::endl;
+    //    spdlog::trace("ss size is {}", ss);
 
     std::shared_ptr<RbspData> res(new RbspData(std::move(tmp)));
     return res;

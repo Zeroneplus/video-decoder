@@ -42,17 +42,17 @@ public:
         RbspData(std::vector<uint8_t> input_buf);
         int size()
         {
-            return buf.size();
+            return buf_.size();
         }
 
         bool byte_aligned()
         {
-            return bits_left == 8;
+            return bits_left_ == 8;
         }
 
         bool eof()
         {
-            return p >= end;
+            return p_ >= end_;
         }
 
         bool more_rbsp_data();
@@ -114,11 +114,11 @@ public:
         }
 
     private:
-        std::vector<uint8_t> buf;
-        uint8_t* start;
-        uint8_t* p;
-        uint8_t* end;
-        int bits_left;
+        std::vector<uint8_t> buf_;
+        uint8_t* start_;
+        uint8_t* p_;
+        uint8_t* end_;
+        int bits_left_;
         int nal_ref_idc_;
         NalUnitType nal_unit_type_;
         bool idr_pic_flag_;
@@ -128,9 +128,9 @@ public:
     ~NalUnit();
     void copy(void* addr);
     std::shared_ptr<RbspData> parse();
-    int size() { return data_size; }
+    int size() { return data_size_; }
 
 private:
-    void* buf;
-    int data_size;
+    void* buf_;
+    int data_size_;
 };
