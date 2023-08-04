@@ -63,6 +63,8 @@ public:
 
         uint32_t peek_u1();
 
+        uint32_t peek_u(int n);
+
         uint32_t read_u(int n);
 
         void skip_u(int n);
@@ -74,6 +76,8 @@ public:
         uint32_t read_te(int range);
 
         int read_me(bool is_Inter);
+
+        uint32_t read_level_prefix();
 
         void parse_nal_header();
 

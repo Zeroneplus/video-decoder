@@ -14,6 +14,8 @@ struct CodedBlockPatternMap {
     int Inter = -1;
 };
 
+static bool disable_over_read_warn = false;
+
 static const CodedBlockPatternMap chroma_array_1_2_me[] = {
     { 0, 47, 0 },
     { 1, 31, 16 },
@@ -313,7 +315,7 @@ uint32_t NalUnit::RbspData::read_u1()
             p++;
             bits_left = 8;
         }
-    } else {
+    } else if (!disable_over_read_warn) {
         std::cout << "read_u1 after eof" << std::endl;
     }
     return r;
@@ -339,9 +341,24 @@ uint32_t NalUnit::RbspData::peek_u1()
     if (!eof()) {
         r = ((*p) >> shift) & 0x01;
     } else {
-        std::cout << "skip_u1 after eof" << std::endl;
+        std::cout << "peek_u1 after eof" << std::endl;
     }
     return r;
+}
+
+uint32_t NalUnit::RbspData::peek_u(int n)
+{
+    uint8_t* tmp_p = p;
+    int tmp_bits_left = bits_left;
+
+    disable_over_read_warn = true;
+    int ret = read_u(n);
+    disable_over_read_warn = false;
+
+    p = tmp_p;
+    bits_left = tmp_bits_left;
+
+    return ret;
 }
 
 uint32_t NalUnit::RbspData::read_u(int n)
@@ -415,6 +432,17 @@ int NalUnit::RbspData::read_me(bool is_Inter)
     return is_Inter ? chroma_array_1_2_me[t].Inter : chroma_array_1_2_me[t].Intra_4x4_or_Intra_8x8;
 }
 
+uint32_t NalUnit::RbspData::read_level_prefix()
+{
+    int leadingZeroBits = -1;
+    int level_prefix;
+
+    for (int b = 0; !b; leadingZeroBits++)
+        b = read_u1();
+    level_prefix = leadingZeroBits;
+    return level_prefix;
+}
+
 bool NalUnit::RbspData::more_rbsp_data()
 {
     if (eof())
@@ -426,7 +454,7 @@ bool NalUnit::RbspData::more_rbsp_data()
     int mask = (1 << bits_left) - 1;
     int s = 1 << (bits_left - 1);
 
-    if (s == (*p) & mask)
+    if (s == ((*p) & mask))
         return false;
     else
         return true;

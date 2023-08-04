@@ -40,7 +40,7 @@ int VideoDecoder::add_pps(std::shared_ptr<NalUnit::RbspData> rbsp)
 
 int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
 {
-    std::shared_ptr<Slice> slice = std::make_shared<Slice>(std::move(rbsp));
+    std::shared_ptr<Slice> slice = std::make_shared<Slice>(rbsp);
     int ret = slice->parse_slice_header(this);
 
     // cal poc for current slice
@@ -55,6 +55,10 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
 
     // parse slice data
     slice->parse_slice_data(this);
+
+    // check trailing bits
+    if (!rbsp->check_trailing_bits())
+        assert(false);
 
     // dec ref pic marking
     if (slice->is_reference_slice())

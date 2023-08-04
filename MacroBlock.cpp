@@ -1,4 +1,5 @@
 
+#include "Cavlc.h"
 #include "Slice.h"
 #include "spdlog/spdlog.h"
 
@@ -988,7 +989,7 @@ void MacroBlock::parse_MacroBlock()
     mb_type_ = rbsp_data_->read_ue();
     determine_mb_type();
 
-    spdlog::warn("the MacroBlock type is {}", mb_type_proxy_.name());
+    spdlog::trace("CurrMbAddr is {}, the MacroBlock type is {}", CurrMbAddr_, mb_type_proxy_.name());
 
     if (mb_type_proxy_.mb_type() == MbType::I_PCM) {
         while (!rbsp_data_->byte_aligned())
@@ -1039,6 +1040,10 @@ void MacroBlock::parse_MacroBlock()
                 transform_size_8x8_flag_ = rbsp_data_->read_u1();
             }
         }
+
+        spdlog::trace("  CodedBlockPatternLuma {}, CodedBlockPatternChroma {}",
+            mb_type_proxy_.CodedBlockPatternLuma(),
+            mb_type_proxy_.CodedBlockPatternChroma());
 
         if (mb_type_proxy_.CodedBlockPatternLuma() > 0
             || mb_type_proxy_.CodedBlockPatternChroma() > 0
@@ -1327,6 +1332,8 @@ void MacroBlock::residual_block(int* coeffLevel,
     };
 
     // init all coeffLevel to zero
+    for (int i = 0; i < maxNumCoeff; i++)
+        coeffLevel[i] = 0;
 
     switch (residual_type) {
     case ResidualType::ChromaDCLevel_Cb:
@@ -1372,6 +1379,104 @@ void MacroBlock::residual_block(int* coeffLevel,
         assert(false);
         break;
     }
+    }
+
+    int coeff_token;
+    int coeff_token_bit_length;
+    int TrailingOnes;
+    int TotalCoeff;
+
+    coeff_token = rbsp_data_->peek_u(16);
+
+    coeff_token_table(nC,
+        coeff_token,
+        coeff_token_bit_length /* int& */,
+        TrailingOnes /* int& */,
+        TotalCoeff /* int& */);
+
+    rbsp_data_->read_u(coeff_token_bit_length);
+
+    int levelVal[64]; // this should be enough
+    int runVal[64];
+
+    if (TotalCoeff > 0) {
+        int suffixLength = 0;
+        if (TotalCoeff > 10 && TrailingOnes < 3)
+            suffixLength = 1;
+
+        for (int i = 0; i < TotalCoeff; i++)
+            if (i < TrailingOnes) {
+                int trailing_ones_sign_flag = rbsp_data_->read_u1();
+                levelVal[i] = 1 - 2 * trailing_ones_sign_flag;
+            } else {
+                int level_prefix = rbsp_data_->read_level_prefix();
+                int levelCode = std::min(15, level_prefix) << suffixLength;
+
+                int levelSuffixSize;
+                if (level_prefix == 14 && suffixLength == 0)
+                    levelSuffixSize = 4;
+                else if (level_prefix >= 15)
+                    levelSuffixSize = level_prefix - 3;
+                else
+                    levelSuffixSize = suffixLength;
+
+                if (suffixLength > 0 || level_prefix >= 14) {
+                    assert(levelSuffixSize > 0);
+                    levelCode += rbsp_data_->read_u(levelSuffixSize);
+                }
+
+                if (level_prefix >= 15 && suffixLength == 0)
+                    levelCode += 15;
+
+                if (level_prefix >= 16)
+                    levelCode += (1 << (level_prefix - 3)) - 4096;
+
+                if (i == TrailingOnes && TrailingOnes < 3)
+                    levelCode += 2;
+
+                if (levelCode % 2 == 0)
+                    levelVal[i] = (levelCode + 2) >> 1;
+                else
+                    levelVal[i] = (-levelCode - 1) >> 1;
+
+                if (suffixLength == 0)
+                    suffixLength = 1;
+
+                if (std::abs(levelVal[i]) > (3 << (suffixLength - 1))
+                    && suffixLength < 6)
+                    suffixLength++;
+            }
+
+        int zerosLeft = 0;
+        if (TotalCoeff < endIdx - startIdx + 1) {
+            int total_zeros;
+            get_total_zeros(
+                rbsp_data_,
+                maxNumCoeff,
+                TotalCoeff /* int tzVlcIndex */,
+                total_zeros /* int & */);
+            zerosLeft = total_zeros;
+        }
+        for (int i = 0; i < TotalCoeff - 1; i++) {
+            if (zerosLeft > 0) {
+                int run_before;
+
+                get_run_before(
+                    rbsp_data_,
+                    zerosLeft,
+                    run_before /* int & */);
+
+                runVal[i] = run_before;
+            } else
+                runVal[i] = 0;
+            zerosLeft = zerosLeft - runVal[i];
+        }
+        runVal[TotalCoeff - 1] = zerosLeft;
+        int coeffNum = -1;
+        for (int i = TotalCoeff - 1; i >= 0; i--) {
+            coeffNum += runVal[i] + 1;
+            coeffLevel[startIdx + coeffNum] = levelVal[i];
+        }
     }
 }
 

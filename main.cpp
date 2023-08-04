@@ -79,6 +79,8 @@ int main(int argn, char** argv)
                 has_meet_IDR = true;
             else
                 goto end;
+
+            goto end; // tmp
             break;
         case NalUnitType::SliceWithoutPartition:
             spdlog::trace("Will add a SliceWithoutPartition to our video decoder");

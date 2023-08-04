@@ -4,7 +4,7 @@ CXX = g++
 
 CXXSRC = FileStream.cpp main.cpp NalUnit.cpp \
          VideoDecoder.cpp SPS.cpp PPS.cpp Slice.cpp \
-		 Vui.cpp MacroBlock.cpp
+		 Vui.cpp MacroBlock.cpp Cavlc.cpp
 CXXOBJ = $(CXXSRC:%.cpp=%.o)
 DEBUG_FLAG = -g -O0 -Werror
 CFLAGS = $(DEBUG_FLAG)

@@ -65,7 +65,7 @@ int Pps::parse()
     } else
         spdlog::warn("redundant_pic_cnt_present_flag is false, OK");
 
-    if (!rbsp_data_->eof()) {
+    if (rbsp_data_->more_rbsp_data()) {
         spdlog::trace("will read transform_8x8_mode_flag");
         transform_8x8_mode_flag_ = rbsp_data_->read_u1();
         pic_scaling_matrix_present_flag_ = rbsp_data_->read_u1();
