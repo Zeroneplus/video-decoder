@@ -295,7 +295,7 @@ int Slice::parse_slice_header(VideoDecoder* decoder)
         return -1;
     }
 
-    if (sps_->separate_colour_plane()) {
+    if (sps_->separate_colour_plane_flag()) {
         colour_plane_id_ = rbsp_data_->read_u(2);
         spdlog::warn("this slice has colour_plane_id {}, check if it is a 4:4:4 chroma format", colour_plane_id_);
     } else
@@ -1252,10 +1252,13 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
     int size_y = PicWidthInMbs * 16 * PicHeightInMbs * 16;
     int size_u_or_v = PicWidthInMbs * sps_->MbWidthC() * PicHeightInMbs * sps_->MbHeightC();
 
-    yuv_data_ = std::vector<uint8_t>(size_y + size_u_or_v * 2, 0);
+    yuv_data_ = std::vector<int>(size_y + size_u_or_v * 2, 0);
     y_data_ = yuv_data_.data();
     u_data_ = y_data_ + size_y;
     v_data_ = u_data_ + size_u_or_v;
+
+    // set init QP_Y_PREV_
+    QP_Y_PREV_ = SliceQPY();
 
     // start parse macro block
 
@@ -1283,6 +1286,8 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
 
                     // TODO: process skipped mb
                     // be care when both top and bottom of a mb pair are skipped
+                    //
+                    // shall we update_QP_Y_PREV() for skip?
 
                     CurrMbAddr = NextMbAddress(CurrMbAddr);
                 }
@@ -1314,6 +1319,8 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
         CurrMbAddr = NextMbAddress(CurrMbAddr);
 
     } while (moreDataFlag);
+
+    write_yuv("");
 
     return 0;
 }
@@ -1409,7 +1416,7 @@ N    xD               yD
 A    −1               0
 B    0                −1
 C    predPartWidth    −1
-D    −1               −1 
+D    −1               −1
 */
 
 // 6.4.11.1 Derivation process for neighbouring macroblocks
@@ -1550,7 +1557,7 @@ Slice::Derivation_process_for_neighbouring_locations(int CurrMbAddr,
         mbAddrN = mbAddrC;
     else {
         // not available
-        assert(false);
+        // assert(false);
     }
 
     if (mbAddrN != INT32_MIN) { // is this safe? yes
@@ -1566,4 +1573,58 @@ MacroBlock& Slice::get_mb_by_addr(int addr)
         assert(false);
     }
     return *mb_map_[addr];
+}
+
+// be care of the meaning of 'x' and 'y'
+// x is width coordinate
+// y is height coordinate
+//
+int Slice::get_constructed_luma(int x, int y)
+{
+    int PicWidthL = sps_->PicWidthInSamplesL();
+
+    return y_data_[x + y * PicWidthL];
+}
+
+int Slice::get_constructed_chroma(int idx, int x, int y)
+{
+    int PicWidthC = sps_->PicWidthInSamplesC();
+
+    return idx == 0 ? u_data_[x + y * PicWidthC] : v_data_[x + y * PicWidthC];
+}
+
+void Slice::set_constructed_luma(int x, int y, int value)
+{
+    int PicWidthL = sps_->PicWidthInSamplesL();
+
+    y_data_[x + y * PicWidthL] = value;
+}
+
+void Slice::set_constructed_chroma(int idx, int x, int y, int value)
+{
+    int PicWidthC = sps_->PicWidthInSamplesC();
+
+    if (idx == 0)
+        u_data_[x + y * PicWidthC] = value;
+    else
+        v_data_[x + y * PicWidthC] = value;
+}
+
+void Slice::write_yuv(std::string file_name)
+{
+    if (!file_name.size())
+        file_name = std::to_string(PicOrderCnt()) + pic_type_str() + ".yuv420p";
+
+    FILE* f = fopen(file_name.c_str(), "wb");
+    if (!f) {
+        assert(false);
+    }
+
+    std::vector<int8_t> tmp(yuv_data_.size());
+    for (int i = 0; i < yuv_data_.size(); i++)
+        tmp[i] = yuv_data_[i];
+
+    int ret = fwrite(tmp.data(), 1, tmp.size(), f);
+    assert(ret == tmp.size());
+    fclose(f);
 }

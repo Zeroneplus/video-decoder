@@ -1,11 +1,26 @@
 #pragma once
 
+#include <functional>
+
 #include "NalUnit.h"
 
 class Slice;
 class Sps;
 class Pps;
 class MacroBlock;
+
+enum class ResidualData {
+    luma,
+    cb,
+    cr
+};
+
+enum class PicConsType {
+    _16x16_luma,
+    _16x16_chroma,
+    _4x4_luma,
+    _4x4_chroma
+};
 
 enum class ResidualType {
     i16x16DClevel,
@@ -157,6 +172,38 @@ struct SubMbTypeDesc {
     int SubMbPartHeight;
 };
 
+// use macro so we can convert between 4x4 and 8x8
+//
+#define Intra_4x4_Vertical 0
+#define Intra_4x4_Horizontal 1
+#define Intra_4x4_DC 2
+#define Intra_4x4_Diagonal_Down_Left 3
+#define Intra_4x4_Diagonal_Down_Right 4
+#define Intra_4x4_Vertical_Right 5
+#define Intra_4x4_Horizontal_Down 6
+#define Intra_4x4_Vertical_Left 7
+#define Intra_4x4_Horizontal_Up 8
+
+#define Intra_8x8_Vertical 0
+#define Intra_8x8_Horizontal 1
+#define Intra_8x8_DC 2
+#define Intra_8x8_Diagonal_Down_Left 3
+#define Intra_8x8_Diagonal_Down_Right 4
+#define Intra_8x8_Vertical_Right 5
+#define Intra_8x8_Horizontal_Down 6
+#define Intra_8x8_Vertical_Left 7
+#define Intra_8x8_Horizontal_Up 8
+
+#define Intra_16x16_Vertical 0
+#define Intra_16x16_Horizontal 1
+#define Intra_16x16_DC 2
+#define Intra_16x16_Plane 3
+
+#define Intra_Chroma_DC 0
+#define Intra_Chroma_Horizontal 1
+#define Intra_Chroma_Vertical 2
+#define Intra_Chroma_Plane 3
+
 class MbTypeProxy {
 public:
     MbTypeProxy() = default;
@@ -295,6 +342,7 @@ public:
     std::pair<int, int> Inverse_sub_macroblock_partition_scanning_process(int mbPartIdx, int subMbPartIdx);
 
     bool is_intra_pred();
+    bool is_inter_pred();
 
     std::tuple<int, int>
     Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(int xP, int yP);
@@ -308,6 +356,122 @@ public:
     int get_nN(int idx, bool is_luma, int chroma_idx);
 
     bool not_available_due_to_constrained_intra(int mbAddrN);
+
+    int QPY();
+
+    int QPPrimeY();
+
+    bool TransformBypassModeFlag();
+
+    void Derivation_process_for_Intra4x4PredMode(int luma4x4BlkIdx);
+
+    int getIntra4x4PredMode(int luma4x4BlkIdxN);
+
+    int getIntra8x8PredModefor4x4Blk(int luma4x4BlkIdxN);
+
+    std::vector<std::vector<int>> Intra_4x4_sample_prediction(int luma4x4BlkIdx);
+
+    bool is_field_macroblock();
+
+    enum MbType mb_type();
+
+    enum MbPartPredMode MbPartPredMode_0();
+
+    int Clip3(int x, int y, int z)
+    {
+        if (z < x)
+            return x;
+        else if (z > y)
+            return y;
+        else
+            return z;
+    }
+
+    int Clip1Y(int x);
+
+    int Clip1C(int x);
+
+    std::vector<std::vector<int>>
+    Intra_16x16_prediction_process_for_luma_samples();
+
+    void Intra_prediction_process_for_chroma_samples();
+
+    std::vector<std::vector<int>>
+    Intra_prediction_process_for_chroma_sample(int idx);
+
+    void Sample_construction_process_for_I_PCM_macroblocks();
+
+    void Intra_4x4_prediction_process_for_luma_samples();
+
+    void Specification_of_transform_decoding_process_for_4x4_luma_residual_blocks(
+        const std::vector<std::vector<int>>& predL,
+        int luma4x4BlkIdx);
+
+    void Specification_of_transform_decoding_process_for_luma_samples_of_Intra_16x16_macroblock_prediction_mode(
+        const std::vector<std::vector<int>>& predL);
+
+    void Specification_of_transform_decoding_process_for_chroma_samples(
+        const std::vector<std::vector<int>>& predC,
+        bool is_cb);
+
+    std::vector<std::vector<int>>
+    Inverse_scanning_process_for_4x4_transform_coefficients_and_scaling_lists(
+        const int* input, bool is_zig_zag);
+
+    int Derivation_process_for_chroma_quantisation_parameters(
+        bool is_cb,
+        bool is_SP_or_SI);
+
+    std::function<int(int, int, int)>
+    Derivation_process_for_scaling_functions(
+        ResidualData residual_type,
+        bool is_4x4);
+
+    std::vector<std::vector<int>>
+    Scaling_and_transformation_process_for_DC_transform_coefficients_for_Intra_16x16_macroblock_type(
+        int bitDepth,
+        int qP,
+        const std::vector<std::vector<int>>& c);
+
+    std::vector<std::vector<int>>
+    Scaling_and_transformation_process_for_chroma_DC_transform_coefficients(
+        const std::vector<std::vector<int>>& c,
+        bool is_cb);
+
+    std::vector<std::vector<int>>
+    Transformation_process_for_chroma_DC_transform_coefficients(
+        const std::vector<std::vector<int>>& c,
+        bool is_cb);
+
+    std::vector<std::vector<int>>
+    Scaling_process_for_chroma_DC_transform_coefficients(
+        const std::vector<std::vector<int>>& f,
+        int bitDepth,
+        int qP,
+        bool is_cb);
+
+    std::vector<std::vector<int>>
+    Scaling_and_transformation_process_for_residual_4x4_blocks(
+        const std::vector<std::vector<int>>& c,
+        ResidualData residual_type);
+
+    std::vector<std::vector<int>>
+    Scaling_process_for_residual_4x4_blocks(
+        int bitDepth,
+        int qP,
+        const std::vector<std::vector<int>>& c,
+        ResidualData residual_type);
+
+    std::vector<std::vector<int>>
+    Transformation_process_for_residual_4x4_blocks(
+        int bitDepth,
+        const std::vector<std::vector<int>>& d);
+
+    void Picture_construction_process_prior_to_deblocking_filter_process(
+        PicConsType BlkType,
+        int BlkIdx,
+        const std::vector<std::vector<int>>& u,
+        bool is_cb);
 
 private:
     Slice* slice_;
@@ -337,8 +501,12 @@ private:
     int prev_intra4x4_pred_mode_flag_[16] = { 0 };
     int rem_intra4x4_pred_mode_[16] = { 0 };
 
+    std::vector<int> Intra4x4PredMode_ { std::vector<int>(16, INT32_MIN) };
+
     int prev_intra8x8_pred_mode_flag_[4] = { 0 };
     int rem_intra8x8_pred_mode_[4] = { 0 };
+
+    std::vector<int> Intra8x8PredMode_ { std::vector<int>(4, INT32_MIN) };
 
     int intra_chroma_pred_mode_ = INT32_MIN;
 

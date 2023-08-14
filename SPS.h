@@ -13,7 +13,7 @@ public:
     void log();
     void dump();
     int sps_id() { return seq_parameter_set_id_; }
-    bool separate_colour_plane()
+    bool separate_colour_plane_flag()
     {
         return separate_colour_plane_flag_;
     }
@@ -65,6 +65,36 @@ public:
     bool direct_8x8_inference_flag()
     {
         return direct_8x8_inference_flag_;
+    }
+
+    int QpBdOffsetY()
+    {
+        return 6 * bit_depth_luma_minus8_;
+    }
+
+    int QpBdOffsetC()
+    {
+        return 6 * bit_depth_chroma_minus8_;
+    }
+
+    bool qpprime_y_zero_transform_bypass_flag()
+    {
+        return qpprime_y_zero_transform_bypass_flag_;
+    }
+
+    int BitDepthY()
+    {
+        return bit_depth_luma();
+    }
+
+    int BitDepthC()
+    {
+        return bit_depth_chroma();
+    }
+
+    int RawMbBits()
+    {
+        return 256 * BitDepthY() + 2 * MbWidthC() * MbHeightC() * BitDepthC();
     }
 
 private:
@@ -130,10 +160,13 @@ public:
     int SubWidthC() { return SubWidthC_; }
     int SubHeightC() { return SubHeightC_; }
     int PicWidthInMbs() { return PicWidthInMbs_; }
-    int PicWidthInSamplesL() { return PicWidthInSamplesL_; }
+    int PicWidthInSamplesL() { return PicWidthInSamplesL_; } /* 16 * PicWidthInMbs() */
+    int PicWidthInSamplesC() { return MbWidthC() * PicWidthInMbs(); }
     int MaxFrameNum() { return MaxFrameNum_; }
     int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
     int ExpectedDeltaPerPicOrderCntCycle() { return ExpectedDeltaPerPicOrderCntCycle_; }
+
+    std::vector<int>& seq_scaling_list(int idx);
 
 private:
     int ChromaArrayType_;
@@ -151,4 +184,7 @@ private:
 
     int SubWidthC_ = -1;
     int SubHeightC_ = -1;
+
+    std::vector<int> Flat_4x4_16_ = std::vector<int>(16, 16);
+    std::vector<int> Flat_8x8_16_ = std::vector<int>(64, 16);
 };

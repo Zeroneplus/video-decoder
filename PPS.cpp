@@ -1,8 +1,10 @@
 #include "PPS.h"
+#include "VideoDecoder.h"
 #include "spdlog/spdlog.h"
 
-Pps::Pps(std::shared_ptr<NalUnit::RbspData> rbsp)
+Pps::Pps(std::shared_ptr<NalUnit::RbspData> rbsp, VideoDecoder* ptr)
     : rbsp_data_(std::move(rbsp))
+    , video_dec_(ptr)
 {
 }
 
@@ -65,6 +67,9 @@ int Pps::parse()
     } else
         spdlog::warn("redundant_pic_cnt_present_flag is false, OK");
 
+    // When second_chroma_qp_index_offset is not present,
+    // it shall be inferred to be equal to chroma_qp_index_offset.
+    second_chroma_qp_index_offset_ = chroma_qp_index_offset_;
     if (rbsp_data_->more_rbsp_data()) {
         spdlog::trace("will read transform_8x8_mode_flag");
         transform_8x8_mode_flag_ = rbsp_data_->read_u1();
@@ -109,4 +114,10 @@ void Pps::log()
     std::cout << space << "redundant_pic_cnt_present_flag is " << redundant_pic_cnt_present_flag_ << std::endl;
     std::cout << space << "transform_8x8_mode_flag is " << transform_8x8_mode_flag_ << std::endl;
     std::cout << space << "pic_scaling_matrix_present_flag is " << pic_scaling_matrix_present_flag_ << std::endl;
+}
+
+std::vector<int>& Pps::pic_scaling_list(int idx)
+{
+    // now only consider pic_scaling_matrix_present_flag=false
+    return video_dec_->get_sps_by_id(seq_parameter_set_id_)->seq_scaling_list(idx);
 }

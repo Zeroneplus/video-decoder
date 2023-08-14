@@ -266,3 +266,9 @@ void Sps::log()
     }
     std::cout << space << "vui_parameters_present_flag is " << vui_parameters_present_flag_ << std::endl;
 }
+
+std::vector<int>& Sps::seq_scaling_list(int idx)
+{
+    // now only consider seq_scaling_matrix_present_flag=false
+    return Flat_4x4_16_;
+}

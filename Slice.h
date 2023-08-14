@@ -102,6 +102,28 @@ public:
         return "Unknown Slice";
     }
 
+    const char* pic_type_str()
+    {
+        switch (slice_type_enum_) {
+        case SliceType::P:
+        case SliceType::P_high:
+            return "_P";
+        case SliceType::B:
+        case SliceType::B_high:
+            return "_B";
+        case SliceType::I:
+        case SliceType::I_high:
+            return "_I";
+        case SliceType::SP:
+        case SliceType::SP_high:
+            return "_SP";
+        case SliceType::SI:
+        case SliceType::SI_high:
+            return "_SI";
+        }
+        return "Unknown Slice";
+    }
+
     bool is_P_slice()
     {
         return (slice_type_enum_ == SliceType::P) || (slice_type_enum_ == SliceType::P_high);
@@ -452,6 +474,26 @@ public:
 
     bool mb_availability(int mbAddr, int CurrMbAddr);
 
+    int QP_Y_PREV()
+    {
+        return QP_Y_PREV_;
+    }
+
+    void update_QP_Y_PREV(int QP_Y_PREV)
+    {
+        QP_Y_PREV_ = QP_Y_PREV;
+    }
+
+    int get_constructed_luma(int x, int y);
+
+    void set_constructed_luma(int x, int y, int value);
+
+    int get_constructed_chroma(int idx, int x, int y);
+
+    void set_constructed_chroma(int idx, int x, int y, int value);
+
+    void write_yuv(std::string file_name);
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -552,10 +594,12 @@ private:
     int picNumL0Pred_ = INT32_MIN, picNumL1Pred_ = INT32_MIN;
 
     // yuv data
-    std::vector<uint8_t> yuv_data_;
-    uint8_t *y_data_, *u_data_, *v_data_;
+    std::vector<int> yuv_data_;
+    int *y_data_, *u_data_, *v_data_;
 
     int mb_field_decoding_flag_;
 
     std::map<int, std::shared_ptr<MacroBlock>> mb_map_;
+
+    int QP_Y_PREV_ = INT32_MIN;
 };

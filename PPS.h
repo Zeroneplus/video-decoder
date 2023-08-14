@@ -3,10 +3,12 @@
 
 #include "NalUnit.h"
 
+class VideoDecoder;
+
 class Pps {
 public:
     Pps() = default;
-    Pps(std::shared_ptr<NalUnit::RbspData> rbsp);
+    Pps(std::shared_ptr<NalUnit::RbspData> rbsp, VideoDecoder* ptr);
     int parse();
 
     void log();
@@ -80,8 +82,31 @@ public:
         return constrained_intra_pred_flag_;
     }
 
+    int chroma_qp_index_offset()
+    {
+        return chroma_qp_index_offset_;
+    }
+
+    int second_chroma_qp_index_offset()
+    {
+        return second_chroma_qp_index_offset_;
+    }
+
+    std::vector<int>& pic_scaling_list(int idx);
+
+    std::vector<int>& ScalingList4x4(int idx)
+    {
+        return pic_scaling_list(idx);
+    }
+
+    std::vector<int>& ScalingList8x8(int idx)
+    {
+        return pic_scaling_list(idx + 6);
+    }
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
+    VideoDecoder* video_dec_;
     /* pps field */
     int pic_parameter_set_id_;
     int seq_parameter_set_id_;
@@ -102,5 +127,5 @@ private:
     int redundant_pic_cnt_present_flag_;
     int transform_8x8_mode_flag_ = 0;
     int pic_scaling_matrix_present_flag_ = 0;
-    int second_chroma_qp_index_offset_ = 0;
+    int second_chroma_qp_index_offset_;
 };

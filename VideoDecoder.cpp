@@ -25,7 +25,7 @@ int VideoDecoder::add_sps(std::shared_ptr<NalUnit::RbspData> rbsp)
 
 int VideoDecoder::add_pps(std::shared_ptr<NalUnit::RbspData> rbsp)
 {
-    std::shared_ptr<Pps> pps = std::make_shared<Pps>(std::move(rbsp));
+    std::shared_ptr<Pps> pps = std::make_shared<Pps>(std::move(rbsp), this);
     int ret = pps->parse();
     int pps_id = pps->pps_id();
     if (!ret) {
