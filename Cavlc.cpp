@@ -1506,13 +1506,13 @@ int get_total_zeros(
     int tzVlcIndex,
     int& total_zeros)
 {
-    if (maxNumCoeff == 4) //If maxNumCoeff is equal to 4, one of the VLCs specified in Table 9-9 (a) is used.
+    if (maxNumCoeff == 4) // If maxNumCoeff is equal to 4, one of the VLCs specified in Table 9-9 (a) is used.
     {
         int token = 0;
         int token2 = 0;
         int token_length = 0;
 
-        //Table 9-9 – total_zeros tables for chroma DC 2x2 and 2x4 blocks
+        // Table 9-9 – total_zeros tables for chroma DC 2x2 and 2x4 blocks
         //(a) Chroma DC 2x2 block (4:2:0 chroma sampling)
         if (tzVlcIndex == 1) {
             token = rbsp_data->peek_u(3);
@@ -1574,13 +1574,13 @@ int get_total_zeros(
         } else {
             assert(false);
         }
-    } else if (maxNumCoeff == 8) //Otherwise, if maxNumCoeff is equal to 8, one of the VLCs specified in Table 9-9 (b) is used.
+    } else if (maxNumCoeff == 8) // Otherwise, if maxNumCoeff is equal to 8, one of the VLCs specified in Table 9-9 (b) is used.
     {
         int token = 0;
         int token2 = 0;
         int token_length = 0;
 
-        //Table 9-9 – total_zeros tables for chroma DC 2x2 and 2x4 blocks
+        // Table 9-9 – total_zeros tables for chroma DC 2x2 and 2x4 blocks
         //(b) Chroma DC 2x4 block (4:2:2 chroma sampling)
         if (tzVlcIndex == 1) {
             token = rbsp_data->peek_u(5);
@@ -1774,13 +1774,13 @@ int get_total_zeros(
         } else {
             assert(false);
         }
-    } else //Otherwise (maxNumCoeff is not equal to 4 and not equal to 8), VLCs from Tables 9-7 and 9-8 are used.
+    } else // Otherwise (maxNumCoeff is not equal to 4 and not equal to 8), VLCs from Tables 9-7 and 9-8 are used.
     {
         int token = 0;
         int token2 = 0;
         int token_length = 0;
 
-        //Table 9-7 – total_zeros tables for 4x4 blocks with tzVlcIndex 1 to 7
+        // Table 9-7 – total_zeros tables for 4x4 blocks with tzVlcIndex 1 to 7
         if (tzVlcIndex == 1) {
             token = rbsp_data->peek_u(9);
             token_length = 0;
