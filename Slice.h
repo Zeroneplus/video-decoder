@@ -22,6 +22,12 @@ enum SliceType {
     SI_high
 };
 
+enum class DataType {
+    luma,
+    cb,
+    cr
+};
+
 enum RefStatus {
     NonRef = 0,
     ShortTerm,
@@ -147,6 +153,11 @@ public:
     bool is_SI_slice()
     {
         return (slice_type_enum_ == SliceType::SI) || (slice_type_enum_ == SliceType::SI_high);
+    }
+
+    bool is_SP_or_SI()
+    {
+        return is_SP_slice() || is_SI_slice();
     }
 
     bool is_reference_slice()
@@ -494,6 +505,97 @@ public:
 
     void write_yuv(std::string file_name);
 
+    int get_constructed_luma_or_chroma(
+        DataType data_type,
+        int x,
+        int y);
+
+    void set_constructed_luma_or_chroma(
+        DataType data_type,
+        int x,
+        int y,
+        int value);
+
+    int Clip3(int x, int y, int z)
+    {
+        if (z < x)
+            return x;
+        else if (z > y)
+            return y;
+        else
+            return z;
+    }
+
+    int Clip1Y(int x);
+
+    int Clip1C(int x);
+
+    std::tuple<
+        std::array<int, 3>,
+        std::array<int, 3>>
+    Filtering_process_for_edges_for_bS_equal_to_4(
+        int (&p)[4],
+        int (&q)[4],
+        bool chromaEdgeFlag,
+        bool chromaStyleFilteringFlag,
+        int a,
+        int b);
+
+    std::tuple<
+        std::array<int, 3>,
+        std::array<int, 3>>
+    Filtering_process_for_edges_with_bS_less_than_4(
+        int (&p)[4],
+        int (&q)[4],
+        bool chromaEdgeFlag,
+        bool chromaStyleFilteringFlag,
+        int bS,
+        int b,
+        int indexA);
+
+    std::tuple<bool, int, int, int>
+    Derivation_process_for_the_thresholds_for_each_block_edge(
+        int p0, int q0, int p1, int q1,
+        bool chromaEdgeFlag, int bS,
+        int filterOffsetA, int filterOffsetB, int qPp, int qPq);
+
+    int Derivation_process_for_the_luma_bs(
+        bool verticalEdgeFlag,
+        int x_of_p0, /* the x coordinate in the total picture */
+        int y_of_p0,
+        int x_of_q0,
+        int y_of_q0);
+
+    void Deblocking_filter_process();
+
+    void Filtering_process_for_block_edges(
+        bool chromaEdgeFlag,
+        int iCbCr,
+        bool verticalEdgeFlag,
+        bool fieldModeInFrameFilteringFlag,
+        const std::vector<int>& xE,
+        const std::vector<int>& yE,
+        int CurrMbAddr);
+
+    std::tuple<
+        std::array<int, 3>,
+        std::array<int, 3>>
+    Filtering_process_for_a_set_of_samples_across_a_horizontal_or_vertical_block_edge(
+        bool chromaEdgeFlag,
+        bool verticalEdgeFlag,
+        int (&p)[4],
+        int (&q)[4],
+        int CurrMbAddr,
+        int x_of_p0, /* the x coordinate in the total picture */
+        int y_of_p0,
+        int x_of_q0,
+        int y_of_q0,
+        bool is_cb);
+
+    int get_mb_addr_from_x_y(int x, int y);
+
+    MacroBlock& get_mb_from_x_y(int x, int y);
+
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
     std::shared_ptr<Pps> pps_;
@@ -602,4 +704,6 @@ private:
     std::map<int, std::shared_ptr<MacroBlock>> mb_map_;
 
     int QP_Y_PREV_ = INT32_MIN;
+
+    std::map<std::tuple<bool, int, int>, int> bs_map_;
 };

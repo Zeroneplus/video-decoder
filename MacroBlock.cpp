@@ -1083,9 +1083,14 @@ void MacroBlock::parse_MacroBlock()
 
 int MacroBlock::QPY()
 {
-    return ((slice_->QP_Y_PREV() + mb_qp_delta_ + 52 + 2 * sps_->QpBdOffsetY())
-               % (52 + sps_->QpBdOffsetY()))
+    if (QPY_internal_ != INT32_MIN)
+        return QPY_internal_;
+
+    QPY_internal_ = ((slice_->QP_Y_PREV() + mb_qp_delta_ + 52 + 2 * sps_->QpBdOffsetY())
+                       % (52 + sps_->QpBdOffsetY()))
         - sps_->QpBdOffsetY();
+
+    return QPY_internal_;
 }
 
 int MacroBlock::QPPrimeY()
@@ -2182,6 +2187,44 @@ bool MacroBlock::is_field_macroblock()
     return false;
 }
 
+bool MacroBlock::is_frame_macroblock()
+{
+    return !is_field_macroblock();
+}
+
+// what if I_PCM P_Skip B_Skip ?
+//
+bool MacroBlock::has_luma_transform_coefficient_levels_in_x_y(
+    int x, int y)
+{
+    if (transform_size_8x8_flag()) {
+        // 8x8 are not considered
+        assert(false);
+    } else {
+
+        int luma4x4BlkIdx = slice_->Derivation_process_for_4x4_luma_block_indices(x, y);
+        int i8x8 = luma4x4BlkIdx / 4;
+
+        return mb_type_proxy_.CodedBlockPatternLuma() & (1 << i8x8);
+    }
+    return false;
+}
+
+bool MacroBlock::is_in_SP_or_SI()
+{
+    return slice_->is_SP_or_SI();
+}
+
+int MacroBlock::FilterOffsetA()
+{
+    return slice_->FilterOffsetA();
+}
+
+int MacroBlock::FilterOffsetB()
+{
+    return slice_->FilterOffsetB();
+}
+
 enum MbType MacroBlock::mb_type()
 {
     return mb_type_proxy_.mb_type();
@@ -2947,6 +2990,53 @@ MacroBlock::Inverse_scanning_process_for_4x4_transform_coefficients_and_scaling_
     }
 
     return std::move(c);
+}
+
+int MacroBlock::deblock_QPC(bool is_cb)
+{
+    auto func = [is_cb, this](int QPY_) {
+        if (QPY_ == INT32_MIN)
+            QPY_ = QPY();
+
+        int qPOffset;
+        if (is_cb)
+            qPOffset = pps_->chroma_qp_index_offset();
+        else
+            qPOffset = pps_->second_chroma_qp_index_offset();
+
+        int qPI = Clip3(-sps_->QpBdOffsetC(), 51, QPY_ + qPOffset);
+
+        int QPC;
+        if (qPI < 30)
+            QPC = qPI;
+        else if (qPI >= 30 && qPI <= 33)
+            QPC = qPI - 1;
+        else if (qPI >= 34 && qPI <= 36)
+            QPC = qPI - 2;
+        else if (qPI >= 37 && qPI <= 38)
+            QPC = qPI - 3;
+        else if (qPI >= 39 && qPI <= 40)
+            QPC = qPI - 4;
+        else if (qPI == 41)
+            QPC = qPI - 5;
+        else if (qPI >= 42 && qPI <= 44)
+            QPC = 37;
+        else if (qPI >= 45 && qPI <= 47)
+            QPC = 38;
+        else if (qPI >= 48 && qPI <= 51)
+            QPC = 39;
+        else
+            assert(false);
+
+        return QPC;
+    };
+
+    // TODO: what if is_SP_or_SI ?
+    // in deblock filter, SP/SI is the same as other slice, QSY is not used
+    if (mb_type() == MbType::I_PCM)
+        return func(0);
+    else
+        return func(INT32_MIN);
 }
 
 // Done

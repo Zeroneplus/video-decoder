@@ -166,6 +166,9 @@ public:
     int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
     int ExpectedDeltaPerPicOrderCntCycle() { return ExpectedDeltaPerPicOrderCntCycle_; }
 
+    // now only consider frame mode
+    int PicSizeInMbs() { return PicWidthInMbs_ * FrameHeightInMbs(); }
+
     std::vector<int>& seq_scaling_list(int idx);
 
 private:

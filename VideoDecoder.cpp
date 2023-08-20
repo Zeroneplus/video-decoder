@@ -56,6 +56,9 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
     // parse slice data
     slice->parse_slice_data(this);
 
+    // deblocking
+    slice->Deblocking_filter_process();
+
     // check trailing bits
     if (!rbsp->check_trailing_bits())
         assert(false);
@@ -71,6 +74,7 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
     slice->update_prev_frame_num_or_prev_ref_pic_poc(this);
 
     // output yuv data for test
+    slice->write_yuv("");
 
     return ret;
 }

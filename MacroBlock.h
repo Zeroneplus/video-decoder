@@ -373,6 +373,10 @@ public:
 
     bool is_field_macroblock();
 
+    bool is_frame_macroblock();
+
+    bool has_luma_transform_coefficient_levels_in_x_y(int x, int y);
+
     enum MbType mb_type();
 
     enum MbPartPredMode MbPartPredMode_0();
@@ -421,6 +425,8 @@ public:
     int Derivation_process_for_chroma_quantisation_parameters(
         bool is_cb,
         bool is_SP_or_SI);
+
+    int deblock_QPC(bool is_cb);
 
     std::function<int(int, int, int)>
     Derivation_process_for_scaling_functions(
@@ -472,6 +478,11 @@ public:
         int BlkIdx,
         const std::vector<std::vector<int>>& u,
         bool is_cb);
+
+    bool is_in_SP_or_SI();
+
+    int FilterOffsetA();
+    int FilterOffsetB();
 
 private:
     Slice* slice_;
@@ -537,4 +548,6 @@ private:
     std::vector<std::vector<int>> ChromaACLevel_non_zeros_ {
         std::vector<std::vector<int>>(2, std::vector<int>(16, INT32_MIN))
     };
+
+    int QPY_internal_ = INT32_MIN;
 };

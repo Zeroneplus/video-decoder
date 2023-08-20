@@ -1320,8 +1320,6 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
 
     } while (moreDataFlag);
 
-    write_yuv("");
-
     return 0;
 }
 
@@ -1413,10 +1411,10 @@ Slice::Derivation_process_for_neighbouring_macroblock_addresses_and_their_availa
 
 /*
 N    xD               yD
-A    −1               0
-B    0                −1
-C    predPartWidth    −1
-D    −1               −1
+A    -1               0
+B    0                -1
+C    predPartWidth    -1
+D    -1               -1
 */
 
 // 6.4.11.1 Derivation process for neighbouring macroblocks
@@ -1582,6 +1580,12 @@ MacroBlock& Slice::get_mb_by_addr(int addr)
 int Slice::get_constructed_luma(int x, int y)
 {
     int PicWidthL = sps_->PicWidthInSamplesL();
+    int FrameHeightL = sps_->FrameHeightInMbs() * 16;
+
+    if (x < 0 || y < 0 || x >= PicWidthL || y >= FrameHeightL) {
+        assert(false);
+        return INT32_MIN;
+    }
 
     return y_data_[x + y * PicWidthL];
 }
@@ -1589,6 +1593,14 @@ int Slice::get_constructed_luma(int x, int y)
 int Slice::get_constructed_chroma(int idx, int x, int y)
 {
     int PicWidthC = sps_->PicWidthInSamplesC();
+    int FrameHeightC = sps_->FrameHeightInMbs() * sps_->MbHeightC();
+
+    if (x < 0 || y < 0
+        || x >= PicWidthC || y >= FrameHeightC
+        || idx < 0 || idx > 1) {
+        assert(false);
+        return INT32_MIN;
+    }
 
     return idx == 0 ? u_data_[x + y * PicWidthC] : v_data_[x + y * PicWidthC];
 }
@@ -1596,6 +1608,10 @@ int Slice::get_constructed_chroma(int idx, int x, int y)
 void Slice::set_constructed_luma(int x, int y, int value)
 {
     int PicWidthL = sps_->PicWidthInSamplesL();
+    int FrameHeightL = sps_->FrameHeightInMbs() * 16;
+
+    if (x < 0 || y < 0 || x >= PicWidthL || y >= FrameHeightL)
+        assert(false);
 
     y_data_[x + y * PicWidthL] = value;
 }
@@ -1603,6 +1619,12 @@ void Slice::set_constructed_luma(int x, int y, int value)
 void Slice::set_constructed_chroma(int idx, int x, int y, int value)
 {
     int PicWidthC = sps_->PicWidthInSamplesC();
+    int FrameHeightC = sps_->FrameHeightInMbs() * sps_->MbHeightC();
+
+    if (x < 0 || y < 0
+        || x >= PicWidthC || y >= FrameHeightC
+        || idx < 0 || idx > 1)
+        assert(false);
 
     if (idx == 0)
         u_data_[x + y * PicWidthC] = value;
@@ -1627,4 +1649,937 @@ void Slice::write_yuv(std::string file_name)
     int ret = fwrite(tmp.data(), 1, tmp.size(), f);
     assert(ret == tmp.size());
     fclose(f);
+}
+
+int Slice::Clip1Y(int x)
+{
+    return Clip3(0, (1 << sps_->bit_depth_luma()) - 1, x);
+}
+
+int Slice::Clip1C(int x)
+{
+    return Clip3(0, (1 << sps_->bit_depth_chroma()) - 1, x);
+}
+
+void Slice::Deblocking_filter_process()
+{
+    int PicSizeInMbs = sps_->PicSizeInMbs();
+    int PicWidthInMbs = sps_->PicWidthInMbs();
+
+    auto func = [PicWidthInMbs, this](int CurrMbAddr, int mbAddrA, int mbAddrB) -> std::tuple<bool, bool, bool, bool> {
+        assert(!MbaffFrameFlag());
+
+        // only consider frame mode
+        bool fieldMbInFrameFlag = false;
+
+        bool filterInternalEdgesFlag;
+        if (disable_deblocking_filter_idc_ == 1)
+            filterInternalEdgesFlag = false;
+        else
+            filterInternalEdgesFlag = true;
+
+        bool filterLeftMbEdgeFlag = true;
+        {
+            if (!MbaffFrameFlag() && (CurrMbAddr % PicWidthInMbs == 0))
+                filterLeftMbEdgeFlag = false;
+            if (MbaffFrameFlag()) {
+                //TODO
+                assert(false);
+            }
+            if (disable_deblocking_filter_idc_ == 1)
+                filterLeftMbEdgeFlag = false;
+            if (disable_deblocking_filter_idc_ == 2 && mbAddrA == INT32_MIN)
+                filterLeftMbEdgeFlag = false;
+        }
+
+        bool filterTopMbEdgeFlag = true;
+        {
+            if (!MbaffFrameFlag() && CurrMbAddr < PicWidthInMbs)
+                filterTopMbEdgeFlag = false;
+            if (MbaffFrameFlag()) {
+                // TODO
+                assert(false);
+            }
+            if (disable_deblocking_filter_idc_ == 1)
+                filterTopMbEdgeFlag = false;
+            if (disable_deblocking_filter_idc_ == 2 && mbAddrB == INT32_MIN)
+                filterTopMbEdgeFlag = false;
+        }
+
+        return { fieldMbInFrameFlag, filterInternalEdgesFlag,
+            filterLeftMbEdgeFlag, filterTopMbEdgeFlag };
+    };
+
+    std::vector<int> _0 = { 0 };
+    std::vector<int> _4 = { 4 };
+    std::vector<int> _8 = { 8 };
+    std::vector<int> _12 = { 12 };
+    std::vector<int> _0_to_15 = { 0, 1, 2, 3, 4, 5, 6, 7, 8,
+        9, 10, 11, 12, 13, 14, 15 };
+    // std::vector<int> _0_to_7 = {0,1,2,3,4,5,6,7};
+
+    int MbHeightC = sps_->MbHeightC();
+    int MbWidthC = sps_->MbWidthC();
+
+    std::vector<int> _0_to_MbHeightC(MbHeightC);
+    std::vector<int> _0_to_MbWidthC(MbWidthC);
+    for (int i = 0; i < MbWidthC; i++)
+        _0_to_MbWidthC[i] = i;
+    for (int i = 0; i < MbHeightC; i++)
+        _0_to_MbHeightC[i] = i;
+
+    auto chroma_filt = [this,
+                           &_0_to_MbHeightC,
+                           &_0_to_MbWidthC,
+                           &_0,
+                           &_4,
+                           &_8,
+                           &_12](int iCbCr,
+                           bool transform_size_8x8_flag,
+                           bool filterLeftMbEdgeFlag,
+                           bool filterTopMbEdgeFlag,
+                           bool filterInternalEdgesFlag,
+                           bool fieldMbInFrameFlag,
+                           int CurrMbAddr) {
+        if (filterLeftMbEdgeFlag)
+            Filtering_process_for_block_edges(
+                true /* chromaEdgeFlag */,
+                iCbCr /* iCbCr */,
+                true /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0 /* xE */,
+                _0_to_MbHeightC /* yE */,
+                CurrMbAddr);
+
+        if (filterInternalEdgesFlag) {
+            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _4 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+
+            if (sps_->ChromaArrayType() == 3)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _8 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+
+            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _12 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+        }
+
+        if (filterTopMbEdgeFlag) {
+            Filtering_process_for_block_edges(
+                true /* chromaEdgeFlag */,
+                iCbCr /* iCbCr */,
+                false /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0_to_MbWidthC /* xE */,
+                _0 /* yE */,
+                CurrMbAddr);
+        }
+
+        if (filterInternalEdgesFlag) {
+            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _4 /* yE */,
+                    CurrMbAddr);
+
+            if (sps_->ChromaArrayType() != 1)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _8 /* yE */,
+                    CurrMbAddr);
+
+            if (sps_->ChromaArrayType() == 2)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _12 /* yE */,
+                    CurrMbAddr);
+
+            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    iCbCr /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _12 /* yE */,
+                    CurrMbAddr);
+        }
+    };
+
+    for (int CurrMbAddr = 0; CurrMbAddr < PicSizeInMbs; CurrMbAddr++) {
+
+        spdlog::error("=== CurrMbAddr {}:", CurrMbAddr);
+        if (CurrMbAddr == 5) {
+            int ml = 1;
+            ml++;
+        }
+
+        auto [mbAddrA, mbAddrB] = Derivation_process_for_neighbouring_macroblocks(
+            CurrMbAddr,
+            true /* is_luma */);
+
+        auto [fieldMbInFrameFlag,
+            filterInternalEdgesFlag,
+            filterLeftMbEdgeFlag,
+            filterTopMbEdgeFlag]
+            = func(CurrMbAddr, mbAddrA, mbAddrB);
+
+        spdlog::error("=== filter luma");
+
+        // filter luma
+        if (filterLeftMbEdgeFlag)
+            Filtering_process_for_block_edges(
+                false /* chromaEdgeFlag */,
+                -1 /* iCbCr */,
+                true /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0 /* xE */,
+                _0_to_15 /* yE */,
+                CurrMbAddr);
+
+        bool transform_size_8x8_flag = get_mb_by_addr(CurrMbAddr).transform_size_8x8_flag();
+
+        if (filterInternalEdgesFlag) {
+            if (!transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    false /* chromaEdgeFlag */,
+                    -1 /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _4 /* xE */,
+                    _0_to_15 /* yE */,
+                    CurrMbAddr);
+
+            Filtering_process_for_block_edges(
+                false /* chromaEdgeFlag */,
+                -1 /* iCbCr */,
+                true /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _8 /* xE */,
+                _0_to_15 /* yE */,
+                CurrMbAddr);
+
+            if (!transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    false /* chromaEdgeFlag */,
+                    -1 /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _12 /* xE */,
+                    _0_to_15 /* yE */,
+                    CurrMbAddr);
+        }
+
+        if (filterTopMbEdgeFlag)
+            // only consider frame mode
+            Filtering_process_for_block_edges(
+                false /* chromaEdgeFlag */,
+                -1 /* iCbCr */,
+                false /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0_to_15 /* xE */,
+                _0 /* yE */,
+                CurrMbAddr);
+
+        if (filterInternalEdgesFlag) {
+            if (!transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    false /* chromaEdgeFlag */,
+                    -1 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_15 /* xE */,
+                    _4 /* yE */,
+                    CurrMbAddr);
+
+            Filtering_process_for_block_edges(
+                false /* chromaEdgeFlag */,
+                -1 /* iCbCr */,
+                false /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0_to_15 /* xE */,
+                _8 /* yE */,
+                CurrMbAddr);
+
+            if (!transform_size_8x8_flag)
+                Filtering_process_for_block_edges(
+                    false /* chromaEdgeFlag */,
+                    -1 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_15 /* xE */,
+                    _12 /* yE */,
+                    CurrMbAddr);
+        }
+
+        // chroma
+        assert(sps_->ChromaArrayType() == 1 || sps_->ChromaArrayType() == 2);
+
+        spdlog::error("=== filter cb");
+
+        chroma_filt(
+            0 /* iCbCr */,
+            transform_size_8x8_flag,
+            filterLeftMbEdgeFlag,
+            filterTopMbEdgeFlag,
+            filterInternalEdgesFlag,
+            fieldMbInFrameFlag,
+            CurrMbAddr);
+
+        spdlog::error("=== filter cr");
+
+        chroma_filt(
+            1 /* iCbCr */,
+            transform_size_8x8_flag,
+            filterLeftMbEdgeFlag,
+            filterTopMbEdgeFlag,
+            filterInternalEdgesFlag,
+            fieldMbInFrameFlag,
+            CurrMbAddr);
+    }
+}
+
+// 8.7.1 Filtering process for block edges
+//
+void Slice::Filtering_process_for_block_edges(
+    bool chromaEdgeFlag,
+    int iCbCr,
+    bool verticalEdgeFlag,
+    bool fieldModeInFrameFilteringFlag,
+    const std::vector<int>& xE,
+    const std::vector<int>& yE,
+    int CurrMbAddr)
+{
+    int nE;
+    if (!chromaEdgeFlag)
+        nE = 16;
+    else if (verticalEdgeFlag)
+        nE = sps_->MbHeightC();
+    else
+        nE = sps_->MbWidthC();
+
+    DataType data_type;
+    if (!chromaEdgeFlag)
+        data_type = DataType::luma;
+    else if (iCbCr == 0)
+        data_type = DataType::cb;
+    else
+        data_type = DataType::cr;
+
+    int dy = 1 + (fieldModeInFrameFilteringFlag ? 1 : 0);
+
+    auto [xI, yI] = Inverse_macroblock_scanning_process(CurrMbAddr);
+
+    int xP, yP;
+    if (!chromaEdgeFlag) {
+        xP = xI;
+        yP = yI;
+    } else {
+        xP = xI / sps_->SubWidthC();
+        yP = (yI + sps_->SubHeightC() - 1) / sps_->SubHeightC();
+    }
+
+    int q[4], p[4];
+    int q_ref_x_[4], q_ref_y_[4];
+    int p_ref_x_[4], p_ref_y_[4];
+    int q_ref_x, q_ref_y, p_ref_x, p_ref_y;
+
+    for (int m = 0; m < xE.size(); m++) {
+        for (int n = 0; n < yE.size(); n++) {
+            int xEk = xE[m];
+            int yEk = yE[n];
+
+            for (int i = 0; i < 4; i++) {
+
+                if (verticalEdgeFlag) {
+                    q_ref_x = xP + xEk + i;
+                    q_ref_y = yP + dy * yEk;
+
+                    p_ref_x = xP + xEk - i - 1;
+                    p_ref_y = q_ref_y;
+                } else {
+                    q_ref_x = xP + xEk;
+                    q_ref_y = yP + dy * (yEk + i) - (yEk % 2);
+
+                    p_ref_x = q_ref_x;
+                    p_ref_y = yP + dy * (yEk - i - 1) - (yEk % 2);
+                }
+
+                q_ref_x_[i] = q_ref_x;
+                q_ref_y_[i] = q_ref_y;
+                p_ref_x_[i] = p_ref_x;
+                p_ref_y_[i] = p_ref_y;
+
+                q[i] = get_constructed_luma_or_chroma(
+                    data_type,
+                    q_ref_x,
+                    q_ref_y);
+                p[i] = get_constructed_luma_or_chroma(
+                    data_type,
+                    p_ref_x,
+                    p_ref_y);
+            }
+
+            auto&& [pprime, qprime] = Filtering_process_for_a_set_of_samples_across_a_horizontal_or_vertical_block_edge(
+                chromaEdgeFlag,
+                verticalEdgeFlag,
+                p,
+                q,
+                CurrMbAddr,
+                p_ref_x_[0] /* x_of_p0 */, /* the x coordinate in the total picture */
+                p_ref_y_[0] /* y_of_p0 */,
+                q_ref_x_[0] /* x_of_q0 */,
+                q_ref_y_[0] /* y_of_q0 */,
+                data_type == DataType::cb /* is_cb */);
+
+            spdlog::error("pprime[{}, {}, {}], qprime[{}, {}, {}]",
+                pprime[0], pprime[1], pprime[2],
+                qprime[0], qprime[1], qprime[2]);
+
+            for (int i = 0; i < 3; i++) {
+
+                if (verticalEdgeFlag) {
+
+                    set_constructed_luma_or_chroma(
+                        data_type,
+                        xP + xEk + i,
+                        yP + dy * yEk,
+                        qprime[i]);
+
+                    set_constructed_luma_or_chroma(
+                        data_type,
+                        xP + xEk - i - 1,
+                        yP + dy * yEk,
+                        pprime[i]);
+                } else {
+
+                    set_constructed_luma_or_chroma(
+                        data_type,
+                        xP + xEk,
+                        yP + dy * (yEk + i) - (yEk % 2),
+                        qprime[i]);
+
+                    set_constructed_luma_or_chroma(
+                        data_type,
+                        xP + xEk,
+                        yP + dy * (yEk - i - 1) - (yEk % 2),
+                        pprime[i]);
+                }
+            }
+        }
+    }
+}
+
+int Slice::get_constructed_luma_or_chroma(
+    DataType data_type,
+    int x,
+    int y)
+{
+    int ret;
+
+    switch (data_type) {
+    case DataType::luma: {
+        ret = get_constructed_luma(x, y);
+        break;
+    }
+    case DataType::cb: {
+        ret = get_constructed_chroma(0, x, y);
+        break;
+    }
+    case DataType::cr: {
+        ret = get_constructed_chroma(1, x, y);
+        break;
+    }
+    }
+    return ret;
+}
+
+void Slice::set_constructed_luma_or_chroma(
+    DataType data_type,
+    int x,
+    int y,
+    int value)
+{
+    switch (data_type) {
+    case DataType::luma: {
+        set_constructed_luma(x, y, value);
+        break;
+    }
+    case DataType::cb: {
+        set_constructed_chroma(0, x, y, value);
+        break;
+    }
+    case DataType::cr: {
+        set_constructed_chroma(1, x, y, value);
+        break;
+    }
+    }
+}
+
+// TODO Revisit
+//
+// 8.7.2 Filtering process for a set of samples across a horizontal or vertical block edge
+std::tuple<
+    std::array<int, 3>,
+    std::array<int, 3>>
+Slice::Filtering_process_for_a_set_of_samples_across_a_horizontal_or_vertical_block_edge(
+    bool chromaEdgeFlag,
+    bool verticalEdgeFlag,
+    int (&p)[4],
+    int (&q)[4],
+    int CurrMbAddr,
+    int x_of_p0, /* the x coordinate in the total picture */
+    int y_of_p0,
+    int x_of_q0,
+    int y_of_q0,
+    bool is_cb)
+{
+    // output
+    std::array<int, 3> pprime, qprime;
+
+    int bS;
+    if (!chromaEdgeFlag) {
+        bS = Derivation_process_for_the_luma_bs(
+            verticalEdgeFlag,
+            x_of_p0,
+            y_of_p0,
+            x_of_q0,
+            y_of_q0);
+
+        auto k = std::tuple<bool, int, int>(verticalEdgeFlag,
+            x_of_q0,
+            y_of_q0);
+
+        if (bs_map_.find(k) != bs_map_.end()) {
+            int k233 = 0;
+            k233++;
+        }
+
+        assert(bs_map_.find(k) == bs_map_.end());
+        bs_map_[k] = bS;
+        /*
+         * std::map<std::tuple<bool, int, int, int, int>, int> bs_map_;
+         */
+    } else {
+        int luma_x_of_q0 = sps_->SubWidthC() * x_of_q0;
+        int luma_y_of_q0 = sps_->SubHeightC() * y_of_q0;
+
+        auto it = bs_map_.find(std::tuple<bool, int, int>(verticalEdgeFlag, luma_x_of_q0, luma_y_of_q0));
+        assert(it != bs_map_.end());
+        bS = it->second;
+    }
+
+    auto& mb_p = get_mb_from_x_y(chromaEdgeFlag? x_of_p0*sps_->SubWidthC():x_of_p0,
+        chromaEdgeFlag? y_of_p0*sps_->SubHeightC():y_of_p0);
+    auto& mb_q = get_mb_from_x_y(chromaEdgeFlag? x_of_q0*sps_->SubWidthC():x_of_q0,
+        chromaEdgeFlag? y_of_q0*sps_->SubHeightC():y_of_q0);
+
+    // for the slice that contains the macroblock containing sample q0
+    int filterOffsetA = mb_q.FilterOffsetA();
+    int filterOffsetB = mb_q.FilterOffsetB();
+
+    auto func = [chromaEdgeFlag, is_cb](MacroBlock& mb) {
+        if (!chromaEdgeFlag) {
+            if (mb.mb_type() == MbType::I_PCM)
+                return 0;
+            else
+                return mb.QPY();
+        } else {
+            return mb.deblock_QPC(is_cb);
+        }
+    };
+
+    int qPp = func(mb_p);
+    int qPq = func(mb_q);
+
+    auto [filterSamplesFlag,
+        indexA,
+        a,
+        b]
+        = Derivation_process_for_the_thresholds_for_each_block_edge(
+            p[0], q[0], p[1], q[1],
+            chromaEdgeFlag, bS,
+            filterOffsetA, filterOffsetB, qPp, qPq);
+
+    bool chromaStyleFilteringFlag = chromaEdgeFlag && (sps_->ChromaArrayType() != 3);
+
+    if (filterSamplesFlag) {
+        if (bS < 4) {
+
+            auto&& [pprime_, qprime_] = Filtering_process_for_edges_with_bS_less_than_4(
+                p,
+                q,
+                chromaEdgeFlag,
+                chromaStyleFilteringFlag,
+                bS,
+                b,
+                indexA);
+
+            pprime = std::move(pprime_);
+            qprime = std::move(qprime_);
+        } else {
+            auto&& [pprime_, qprime_] = Filtering_process_for_edges_for_bS_equal_to_4(
+                p,
+                q,
+                chromaEdgeFlag,
+                chromaStyleFilteringFlag,
+                a,
+                b);
+
+            pprime = std::move(pprime_);
+            qprime = std::move(qprime_);
+        }
+    } else {
+        for (int i = 0; i < 3; i++) {
+            pprime[i] = p[i];
+            qprime[i] = q[i];
+        }
+    }
+
+    return { pprime, qprime };
+}
+
+int Slice::get_mb_addr_from_x_y(int x, int y)
+{
+    // get mb addr from (x, y)
+    // only consider frame mode
+    //
+    int x_ = x / 16;
+    int y_ = y / 16;
+    return x_ + y_ * sps_->PicWidthInMbs();
+}
+
+MacroBlock& Slice::get_mb_from_x_y(int x, int y)
+{
+    // only consider frame mode
+    return get_mb_by_addr(get_mb_addr_from_x_y(x, y));
+}
+
+// TODO revisit this
+//
+// 8.7.2.1 Derivation process for the luma content dependent boundary filtering strength
+//
+int Slice::Derivation_process_for_the_luma_bs(
+    bool verticalEdgeFlag,
+    int x_of_p0, /* the x coordinate in the total picture */
+    int y_of_p0,
+    int x_of_q0,
+    int y_of_q0)
+{
+
+    MacroBlock& mb_p = get_mb_from_x_y(x_of_p0, y_of_p0);
+    MacroBlock& mb_q = get_mb_from_x_y(x_of_q0, y_of_q0);
+
+    int mod_x_of_p0 = x_of_p0 % 16;
+    int mod_y_of_p0 = y_of_p0 % 16;
+    int mod_x_of_q0 = x_of_q0 % 16;
+    int mod_y_of_q0 = y_of_q0 % 16;
+
+    int bS = INT32_MIN;
+
+    // now only consider frame mode
+    assert(!MbaffFrameFlag());
+    bool mixedModeEdgeFlag = false;
+
+    bool is_macroblock_edge;
+    if (verticalEdgeFlag) {
+        if (x_of_q0 % 16 == 0)
+            is_macroblock_edge = true;
+        else
+            is_macroblock_edge = false;
+    } else {
+        if (y_of_q0 % 16 == 0)
+            is_macroblock_edge = true;
+        else
+            is_macroblock_edge = false;
+    }
+
+    if (is_macroblock_edge) {
+
+        if (mb_p.is_frame_macroblock() && mb_q.is_frame_macroblock()) {
+
+            if (mb_p.is_intra_pred() || mb_q.is_intra_pred())
+                return 4;
+
+            if (mb_p.is_in_SP_or_SI() || mb_q.is_in_SP_or_SI())
+                return 4;
+        }
+
+        if ((MbaffFrameFlag() || field_pic_flag()) && verticalEdgeFlag) {
+            assert(false);
+        }
+
+    } else {
+        if (!mixedModeEdgeFlag) {
+
+            if (mb_p.is_intra_pred() || mb_q.is_intra_pred())
+                return 3;
+
+            if (mb_p.is_in_SP_or_SI() || mb_q.is_in_SP_or_SI())
+                return 3;
+        }
+        if (mixedModeEdgeFlag && !verticalEdgeFlag) {
+            assert(false);
+        }
+
+        if (mb_p.has_luma_transform_coefficient_levels_in_x_y(
+                mod_x_of_p0, mod_y_of_p0))
+            return 2;
+
+        if (mb_q.has_luma_transform_coefficient_levels_in_x_y(
+                mod_x_of_q0, mod_y_of_q0))
+            return 2;
+
+        if (mixedModeEdgeFlag)
+            return 1;
+
+        // TODO
+    }
+
+    return 0;
+}
+
+// Done
+//
+static int get_a_prime_or_b_prime(int index, bool is_a_prime)
+{
+    static int a[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 4, 4, 5, 6, 7, 8, 9, 10, 12, 13,
+        15, 17, 20, 22, 25, 28, 32, 36, 40, 45, 50, 56,
+        63, 71, 80, 90, 101, 113,
+        127, 144, 162, 182, 203, 226, 255, 255
+    };
+
+    static int b[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4,
+        6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11,
+        12, 12, 13, 13, 14, 14, 15, 15, 16,
+        16, 17, 17, 18, 18
+    };
+
+    return is_a_prime ? a[index] : b[index];
+}
+
+// Done
+//
+// 8.7.2.2 Derivation process for the thresholds for each block edge
+//
+// filterSamplesFlag, indexA, a, b
+std::tuple<bool, int, int, int>
+Slice::Derivation_process_for_the_thresholds_for_each_block_edge(
+    int p0, int q0, int p1, int q1,
+    bool chromaEdgeFlag, int bS,
+    int filterOffsetA, int filterOffsetB, int qPp, int qPq)
+{
+    int a, b;
+
+    // NOTE - In SP and SI slices, qPav is derived in the same way as in other slice types.
+    //     QSY from Equation 7-30 is not used in the deblocking filter.
+    //
+    int qPav = (qPp + qPq + 1) >> 1;
+
+    int indexA = Clip3(0, 51, qPav + filterOffsetA);
+    int indexB = Clip3(0, 51, qPav + filterOffsetB);
+
+    if (!chromaEdgeFlag) {
+        a = get_a_prime_or_b_prime(indexA, true /* is_a_prime */)
+            * (1 << (sps_->BitDepthY() - 8));
+
+        b = get_a_prime_or_b_prime(indexB, false /* is_a_prime */)
+            * (1 << (sps_->BitDepthY() - 8));
+    } else {
+        a = get_a_prime_or_b_prime(indexA, true /* is_a_prime */)
+            * (1 << (sps_->BitDepthC() - 8));
+
+        b = get_a_prime_or_b_prime(indexB, false /* is_a_prime */)
+            * (1 << (sps_->BitDepthC() - 8));
+    }
+
+    bool filterSamplesFlag = (bS != 0
+        && std::abs(p0 - q0) < a
+        && std::abs(p1 - p0) < b
+        && std::abs(q1 - q0) < b);
+
+    return { filterSamplesFlag, indexA, a, b };
+}
+
+// Done
+//
+static int get_tprimeC0(int indexA, int bS)
+{
+
+    static int bS_1[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3,
+        3, 4, 4, 4, 5, 6, 6, 7, 8, 9, 10, 11, 13
+    };
+
+    static int bS_2[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4,
+        5, 5, 6, 7, 8, 8, 10, 11, 12, 13, 15, 17
+    };
+
+    static int bS_3[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 6, 6,
+        7, 8, 9, 10, 11, 13, 14, 16, 18, 20, 23, 25
+    };
+
+    switch (bS) {
+    case 1:
+        return bS_1[indexA];
+    case 2:
+        return bS_2[indexA];
+    case 3:
+        return bS_3[indexA];
+    default:
+        assert(false);
+        break;
+    }
+
+    return INT32_MIN;
+}
+
+// Done
+//
+// 8.7.2.3 Filtering process for edges with bS less than 4
+//
+std::tuple<
+    std::array<int, 3>,
+    std::array<int, 3>>
+Slice::Filtering_process_for_edges_with_bS_less_than_4(
+    int (&p)[4],
+    int (&q)[4],
+    bool chromaEdgeFlag,
+    bool chromaStyleFilteringFlag,
+    int bS,
+    int b,
+    int indexA)
+{
+    std::array<int, 3> pprime, qprime;
+
+    int tC0, tprimeC0;
+
+    tprimeC0 = get_tprimeC0(indexA, bS);
+
+    if (!chromaEdgeFlag)
+        tC0 = tprimeC0 * (1 << (sps_->BitDepthY() - 8));
+    else
+        tC0 = tprimeC0 * (1 << (sps_->BitDepthC() - 8));
+
+    int ap = std::abs(p[2] - p[0]);
+    int aq = std::abs(q[2] - q[0]);
+
+    int tC;
+    if (!chromaStyleFilteringFlag)
+        tC = tC0 + ((ap < b) ? 1 : 0) + ((aq < b) ? 1 : 0);
+    else
+        tC = tC0 + 1;
+
+    int delta = Clip3(-tC, tC, ((((q[0] - p[0]) << 2) + (p[1] - q[1]) + 4) >> 3));
+
+    if (!chromaEdgeFlag) {
+        pprime[0] = Clip1Y(p[0] + delta);
+        qprime[0] = Clip1Y(q[0] - delta);
+    } else {
+        pprime[0] = Clip1C(p[0] + delta);
+        qprime[0] = Clip1C(q[0] - delta);
+    }
+
+    if (!chromaStyleFilteringFlag && ap < b)
+        pprime[1] = p[1] + Clip3(-tC0, tC0, (p[2] + ((p[0] + q[0] + 1) >> 1) - (p[1] << 1)) >> 1);
+    else
+        pprime[1] = p[1];
+
+    if (!chromaStyleFilteringFlag && aq < b)
+        qprime[1] = q[1] + Clip3(-tC0, tC0, (q[2] + ((p[0] + q[0] + 1) >> 1) - (q[1] << 1)) >> 1);
+    else
+        qprime[1] = q[1];
+
+    pprime[2] = p[2];
+    qprime[2] = q[2];
+
+    return { pprime, qprime };
+}
+
+//Done
+//
+// 8.7.2.4 Filtering process for edges for bS equal to 4
+//
+std::tuple<
+    std::array<int, 3>,
+    std::array<int, 3>>
+Slice::Filtering_process_for_edges_for_bS_equal_to_4(
+    int (&p)[4],
+    int (&q)[4],
+    bool chromaEdgeFlag,
+    bool chromaStyleFilteringFlag,
+    int a,
+    int b)
+{
+    std::array<int, 3> pprime, qprime;
+
+    int ap = std::abs(p[2] - p[0]);
+    int aq = std::abs(q[2] - q[0]);
+
+    if (!chromaStyleFilteringFlag
+        && ap < b && std::abs(p[0] - q[0]) < ((a >> 2) + 2)) {
+        pprime[0] = (p[2] + 2 * p[1] + 2 * p[0] + 2 * q[0] + q[1] + 4) >> 3;
+        pprime[1] = (p[2] + p[1] + p[0] + q[0] + 2) >> 2;
+        pprime[2] = (2 * p[3] + 3 * p[2] + p[1] + p[0] + q[0] + 4) >> 3;
+    } else {
+        pprime[0] = (2 * p[1] + p[0] + q[1] + 2) >> 2;
+        pprime[1] = p[1];
+        pprime[2] = p[2];
+    }
+
+    if (!chromaStyleFilteringFlag
+        && aq < b && std::abs(p[0] - q[0]) < ((a >> 2) + 2)) {
+        qprime[0] = (p[1] + 2 * p[0] + 2 * q[0] + 2 * q[1] + q[2] + 4) >> 3;
+        qprime[1] = (p[0] + q[0] + q[1] + q[2] + 2) >> 2;
+        qprime[2] = (2 * q[3] + 3 * q[2] + q[1] + q[0] + p[0] + 4) >> 3;
+    } else {
+        qprime[0] = (2 * q[1] + q[0] + p[1] + 2) >> 2;
+        qprime[1] = q[1];
+        qprime[2] = q[2];
+    }
+
+    return { pprime, qprime };
 }
