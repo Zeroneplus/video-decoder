@@ -35,6 +35,10 @@ ffmpeg_test
 
 # pictures
 *.bmp
+*.yuv420p
+third_party/h264_video_decoder_demo/out_*.yuv
 
 # misc
 make_format_test.cpp
+*.log
+test.cpp
