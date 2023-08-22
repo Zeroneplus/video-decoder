@@ -351,7 +351,7 @@ public:
         std::tuple<int, int, int>,
         std::tuple<int, int, int>,
         std::tuple<int, int, int>>
-    Derivation_process_for_neighbouring_partitions(int mbPartIdx, int subMbPartIdx);
+    Derivation_process_for_neighbouring_partitions(int mbPartIdx, int subMbPartIdx, SubMbType currSubMbType);
 
     int get_nN(int idx, bool is_luma, int chroma_idx);
 
@@ -484,6 +484,10 @@ public:
     int FilterOffsetA();
     int FilterOffsetB();
 
+    void parse_P_Skip();
+
+    void parse_B_Skip();
+
 private:
     Slice* slice_;
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
@@ -530,7 +534,7 @@ private:
     SubMbTypeProxy sub_mb_type_proxy_[4];
 
     int i16x16DClevel_[16] = { 0 };
-    int i16x16AClevel_[16][15] = { 0 };
+    int i16x16AClevel_[16][16] = { 0 }; // [16][15]
     int level4x4_[16][16] = { 0 };
     int level8x8_[4][64] = { 0 };
 
@@ -538,16 +542,23 @@ private:
     std::vector<int> level4x4_non_zeros_ { std::vector<int>(16, INT32_MIN) };
 
     int (&Intra16x16DCLevel_)[16] = i16x16DClevel_;
-    int (&Intra16x16ACLevel_)[16][15] = i16x16AClevel_;
+    int (&Intra16x16ACLevel_)[16][16] = i16x16AClevel_; // [16][15]
     int (&LumaLevel4x4_)[16][16] = level4x4_;
     int (&LumaLevel8x8_)[4][64] = level8x8_;
 
     int ChromaDCLevel_[2][16] = { 0 };
-    int ChromaACLevel_[2][16][15] = { 0 };
+    int ChromaACLevel_[2][16][16] = { 0 }; // [2][16][15]
 
     std::vector<std::vector<int>> ChromaACLevel_non_zeros_ {
         std::vector<std::vector<int>>(2, std::vector<int>(16, INT32_MIN))
     };
 
     int QPY_internal_ = INT32_MIN;
+
+    int MvL0_[4][4] = { 0 };
+    int MvL1_[4][4] = { 0 };
+    int RefIdxL0_[4] = { 0 };
+    int RefIdxL1_[4] = { 0 };
+    int PredFlagL0_[4] = { 0 };
+    int PredFlagL1_[4] = { 0 };
 };

@@ -1289,6 +1289,17 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
                     //
                     // shall we update_QP_Y_PREV() for skip?
 
+                    std::shared_ptr<MacroBlock> mb = std::make_shared<MacroBlock>(this, rbsp_data_, CurrMbAddr);
+                    add_MacroBlock(CurrMbAddr, mb);
+
+                    if (is_P_slice() || is_SP_slice()) {
+                        mb->parse_P_Skip();
+                        // spdlog::error("has P Skip");
+                    } else if (is_B_slice()) {
+                        mb->parse_P_Skip();
+                        // spdlog::error("has B Skip");
+                    }
+
                     CurrMbAddr = NextMbAddress(CurrMbAddr);
                 }
 
@@ -1327,6 +1338,7 @@ void Slice::add_MacroBlock(int CurrMbAddr, std::shared_ptr<MacroBlock> mb)
 {
     auto it = mb_map_.find(CurrMbAddr);
     if (it != mb_map_.end()) {
+        assert(false);
         mb_map_.erase(it);
         spdlog::warn("will remove an exist mb and insert a new mb");
     }
@@ -1553,9 +1565,12 @@ Slice::Derivation_process_for_neighbouring_locations(int CurrMbAddr,
         mbAddrN = CurrMbAddr;
     else if (xN > maxW - 1 && yN < 0)
         mbAddrN = mbAddrC;
-    else {
+    else if (xN > maxW - 1 && yN >= 0 && yN <= maxH - 1) {
         // not available
-        // assert(false);
+    } else if (yN > maxH - 1) {
+        // not available
+    } else {
+        assert(false);
     }
 
     if (mbAddrN != INT32_MIN) { // is this safe? yes
@@ -1683,7 +1698,7 @@ void Slice::Deblocking_filter_process()
             if (!MbaffFrameFlag() && (CurrMbAddr % PicWidthInMbs == 0))
                 filterLeftMbEdgeFlag = false;
             if (MbaffFrameFlag()) {
-                //TODO
+                // TODO
                 assert(false);
             }
             if (disable_deblocking_filter_idc_ == 1)
@@ -1839,7 +1854,7 @@ void Slice::Deblocking_filter_process()
 
     for (int CurrMbAddr = 0; CurrMbAddr < PicSizeInMbs; CurrMbAddr++) {
 
-        spdlog::error("=== CurrMbAddr {}:", CurrMbAddr);
+        // spdlog::trace("=== CurrMbAddr {}:", CurrMbAddr);
         if (CurrMbAddr == 5) {
             int ml = 1;
             ml++;
@@ -1855,7 +1870,7 @@ void Slice::Deblocking_filter_process()
             filterTopMbEdgeFlag]
             = func(CurrMbAddr, mbAddrA, mbAddrB);
 
-        spdlog::error("=== filter luma");
+        // spdlog::trace("=== filter luma");
 
         // filter luma
         if (filterLeftMbEdgeFlag)
@@ -1867,6 +1882,8 @@ void Slice::Deblocking_filter_process()
                 _0 /* xE */,
                 _0_to_15 /* yE */,
                 CurrMbAddr);
+
+        // TODO: what is the transform_size_8x8_flag for Skip MB ?
 
         bool transform_size_8x8_flag = get_mb_by_addr(CurrMbAddr).transform_size_8x8_flag();
 
@@ -1946,7 +1963,7 @@ void Slice::Deblocking_filter_process()
         // chroma
         assert(sps_->ChromaArrayType() == 1 || sps_->ChromaArrayType() == 2);
 
-        spdlog::error("=== filter cb");
+        // spdlog::trace("=== filter cb");
 
         chroma_filt(
             0 /* iCbCr */,
@@ -1957,7 +1974,7 @@ void Slice::Deblocking_filter_process()
             fieldMbInFrameFlag,
             CurrMbAddr);
 
-        spdlog::error("=== filter cr");
+        // spdlog::trace("=== filter cr");
 
         chroma_filt(
             1 /* iCbCr */,
@@ -2063,9 +2080,9 @@ void Slice::Filtering_process_for_block_edges(
                 q_ref_y_[0] /* y_of_q0 */,
                 data_type == DataType::cb /* is_cb */);
 
-            spdlog::error("pprime[{}, {}, {}], qprime[{}, {}, {}]",
-                pprime[0], pprime[1], pprime[2],
-                qprime[0], qprime[1], qprime[2]);
+            // spdlog::trace("pprime[{}, {}, {}], qprime[{}, {}, {}]",
+            //     pprime[0], pprime[1], pprime[2],
+            //     qprime[0], qprime[1], qprime[2]);
 
             for (int i = 0; i < 3; i++) {
 
@@ -2181,10 +2198,12 @@ Slice::Filtering_process_for_a_set_of_samples_across_a_horizontal_or_vertical_bl
             x_of_q0,
             y_of_q0);
 
-        if (bs_map_.find(k) != bs_map_.end()) {
-            int k233 = 0;
-            k233++;
-        }
+        // TODO: remove
+        //
+        // if (bs_map_.find(k) != bs_map_.end()) {
+        //     int k233 = 0;
+        //     k233++;
+        // }
 
         assert(bs_map_.find(k) == bs_map_.end());
         bs_map_[k] = bS;
@@ -2200,10 +2219,10 @@ Slice::Filtering_process_for_a_set_of_samples_across_a_horizontal_or_vertical_bl
         bS = it->second;
     }
 
-    auto& mb_p = get_mb_from_x_y(chromaEdgeFlag? x_of_p0*sps_->SubWidthC():x_of_p0,
-        chromaEdgeFlag? y_of_p0*sps_->SubHeightC():y_of_p0);
-    auto& mb_q = get_mb_from_x_y(chromaEdgeFlag? x_of_q0*sps_->SubWidthC():x_of_q0,
-        chromaEdgeFlag? y_of_q0*sps_->SubHeightC():y_of_q0);
+    auto& mb_p = get_mb_from_x_y(chromaEdgeFlag ? x_of_p0 * sps_->SubWidthC() : x_of_p0,
+        chromaEdgeFlag ? y_of_p0 * sps_->SubHeightC() : y_of_p0);
+    auto& mb_q = get_mb_from_x_y(chromaEdgeFlag ? x_of_q0 * sps_->SubWidthC() : x_of_q0,
+        chromaEdgeFlag ? y_of_q0 * sps_->SubHeightC() : y_of_q0);
 
     // for the slice that contains the macroblock containing sample q0
     int filterOffsetA = mb_q.FilterOffsetA();
@@ -2539,9 +2558,9 @@ Slice::Filtering_process_for_edges_with_bS_less_than_4(
     return { pprime, qprime };
 }
 
-//Done
+// Done
 //
-// 8.7.2.4 Filtering process for edges for bS equal to 4
+//  8.7.2.4 Filtering process for edges for bS equal to 4
 //
 std::tuple<
     std::array<int, 3>,

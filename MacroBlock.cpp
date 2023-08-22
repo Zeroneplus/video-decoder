@@ -17,9 +17,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             INT32_MIN, // int Intra16x16PredMode
             INT32_MIN, // int CodedBlockPatternChroma
             INT32_MIN, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_0_0,
         {
@@ -30,9 +30,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_0_0,
         {
@@ -43,9 +43,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_0_0,
         {
@@ -56,9 +56,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_0_0,
         {
@@ -69,9 +69,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_1_0,
         {
@@ -82,9 +82,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_1_0,
         {
@@ -95,9 +95,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_1_0,
         {
@@ -108,9 +108,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_1_0,
         {
@@ -121,9 +121,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_2_0,
         {
@@ -134,9 +134,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_2_0,
         {
@@ -147,9 +147,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_2_0,
         {
@@ -160,9 +160,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_2_0,
         {
@@ -173,9 +173,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             0, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_0_1,
         {
@@ -186,9 +186,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_0_1,
         {
@@ -199,9 +199,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_0_1,
         {
@@ -212,9 +212,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_0_1,
         {
@@ -225,9 +225,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             0, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_1_1,
         {
@@ -238,9 +238,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_1_1,
         {
@@ -251,9 +251,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_1_1,
         {
@@ -264,9 +264,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_1_1,
         {
@@ -277,9 +277,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             1, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_0_2_1,
         {
@@ -290,9 +290,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             0, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_1_2_1,
         {
@@ -303,9 +303,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             1, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_2_2_1,
         {
@@ -316,9 +316,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             2, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_16x16_3_2_1,
         {
@@ -329,9 +329,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             3, // int Intra16x16PredMode
             2, // int CodedBlockPatternChroma
             15, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
     { MbType::I_PCM,
         {
@@ -342,9 +342,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             INT32_MIN, // int Intra16x16PredMode
             INT32_MIN, // int CodedBlockPatternChroma
             INT32_MIN, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
 
     // SI
@@ -358,9 +358,9 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
             INT32_MIN, // int Intra16x16PredMode
             INT32_MIN, // int CodedBlockPatternChroma
             INT32_MIN, // int CodedBlockPatternLuma
-            1, // int NumMbPart
-            16, // int MbPartWidth
-            16, // int MbPartHeight
+            INT32_MIN, // int NumMbPart
+            INT32_MIN, // int MbPartWidth
+            INT32_MIN, // int MbPartHeight
         } },
 
     // P or SP
@@ -445,6 +445,8 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
         } },
 
     // B
+
+    // B_Direct_16x16 does not have NumMbPart, but has MbPartWidth and MbPartHeight
     { MbType::B_Direct_16x16,
         {
             MbType::B_Direct_16x16, // enum MbType mb_type
@@ -775,6 +777,7 @@ std::map<enum MbType, MbTypeDesc> mb_type_desc_map = {
 };
 
 std::map<enum SubMbType, SubMbTypeDesc> sub_mb_type_desc_map = {
+    // P
     { SubMbType::P_L0_8x8,
         { SubMbType::P_L0_8x8,
             "P_L0_8x8",
@@ -984,6 +987,24 @@ void MacroBlock::determine_mb_type()
     }
 }
 
+void MacroBlock::parse_P_Skip()
+{
+    mb_type_ = (int)MbType::P_Skip;
+    mb_type_proxy_ = MbTypeProxy { (enum MbType)mb_type_, slice_, this };
+
+    // update QP_Y_PREV
+    slice_->update_QP_Y_PREV(QPY());
+}
+
+void MacroBlock::parse_B_Skip()
+{
+    mb_type_ = (int)MbType::B_Skip;
+    mb_type_proxy_ = MbTypeProxy { (enum MbType)mb_type_, slice_, this };
+
+    // update QP_Y_PREV
+    slice_->update_QP_Y_PREV(QPY());
+}
+
 // here we parse non-skip MB
 void MacroBlock::parse_MacroBlock()
 {
@@ -993,6 +1014,9 @@ void MacroBlock::parse_MacroBlock()
     spdlog::trace("CurrMbAddr is {}, the MacroBlock type is {}", CurrMbAddr_, mb_type_proxy_.name());
 
     if (mb_type_proxy_.mb_type() == MbType::I_PCM) {
+        // TODO: fully test I_PCM
+        assert(false);
+
         while (!rbsp_data_->byte_aligned())
             rbsp_data_->read_u1();
 
@@ -1006,17 +1030,28 @@ void MacroBlock::parse_MacroBlock()
     } else {
         // here call MbPartPredMode_0() is safe, as the MbType::I_NxN has been excluded,
         // but NumMbPart() for SI MB is not defined in spec.
+        //
+        // NOTE: B_Direct_16x16 has NumMbPart N/A
+        //
         if (mb_type_proxy_.mb_type() != MbType::I_NxN
             && mb_type_proxy_.MbPartPredMode_0() != MbPartPredMode::Intra_16x16
             && mb_type_proxy_.NumMbPart() == 4) {
+
+            // B_Skip P_Skip is not processed here
+            assert(mb_type_proxy_.mb_type() == MbType::P_8x8
+                || mb_type_proxy_.mb_type() == MbType::P_8x8ref0
+                || mb_type_proxy_.mb_type() == MbType::B_8x8);
+
             parse_sub_mb_pred();
-            for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++) { // B_Skip is not processed here
+            for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++) {
                 if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8) {
                     if (sub_mb_type_proxy_[mbPartIdx].NumSubMbPart() > 1)
                         noSubMbPartSizeLessThan8x8Flag_ = 0;
 
-                } else if (!sps_->direct_8x8_inference_flag()) // if sps_->direct_8x8_inference_flag() is true
-                    noSubMbPartSizeLessThan8x8Flag_ = 0; // B_Direct_8x8 will not be sub partitioned
+                } else if (!sps_->direct_8x8_inference_flag())
+                    // if sps_->direct_8x8_inference_flag() is true,
+                    // B_Direct_8x8 will not be sub partitioned
+                    noSubMbPartSizeLessThan8x8Flag_ = 0;
             }
         } else {
             if (pps_->transform_8x8_mode_flag()
@@ -1024,6 +1059,10 @@ void MacroBlock::parse_MacroBlock()
                 transform_size_8x8_flag_ = rbsp_data_->read_u1();
             parse_mb_pred();
         }
+
+        // the residual data for B_Skip P_Skip is 0
+        // but maybe not 0 for B_Direct_16x16 and B_Direct_8x8
+        //
         if (mb_type_proxy_.MbPartPredMode_0() != MbPartPredMode::Intra_16x16) {
 
             coded_block_pattern_ = rbsp_data_->read_me(
@@ -1087,7 +1126,7 @@ int MacroBlock::QPY()
         return QPY_internal_;
 
     QPY_internal_ = ((slice_->QP_Y_PREV() + mb_qp_delta_ + 52 + 2 * sps_->QpBdOffsetY())
-                       % (52 + sps_->QpBdOffsetY()))
+                        % (52 + sps_->QpBdOffsetY()))
         - sps_->QpBdOffsetY();
 
     return QPY_internal_;
@@ -1146,7 +1185,8 @@ void MacroBlock::parse_mb_pred()
         if (sps_->ChromaArrayType() == 1 || sps_->ChromaArrayType() == 2)
             intra_chroma_pred_mode_ = rbsp_data_->read_ue();
 
-    } else if (mb_type_proxy_.MbPartPredMode_0() != MbPartPredMode::Direct) { // if Direct mode, no ref idx or mvd
+    } else if (mb_type_proxy_.MbPartPredMode_0() != MbPartPredMode::Direct) {
+        // if Direct mode, no ref idx or mvd here
 
         for (int mbPartIdx = 0; mbPartIdx < mb_type_proxy_.NumMbPart(); mbPartIdx++) {
 
@@ -1200,6 +1240,8 @@ void MacroBlock::parse_sub_mb_pred()
             assert(false);
     }
 
+    // for P_8x8ref0, ref idx 0 is 0,
+    // for B_Direct_8x8, ref idx 0 are inferred
     for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
         if ((slice_->num_ref_idx_l0_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
             && mb_type_proxy_.mb_type() != MbType::P_8x8ref0
@@ -1207,12 +1249,14 @@ void MacroBlock::parse_sub_mb_pred()
             && sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() != SubMbPredMode::Pred_L1)
             ref_idx_l0_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l0_active_minus1());
 
+    // for B_Direct_8x8, ref idx 1 are inferred
     for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
         if ((slice_->num_ref_idx_l1_active_minus1() > 0 || slice_->mb_field_decoding_flag() != slice_->field_pic_flag())
             && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
             && sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() != SubMbPredMode::Pred_L0)
             ref_idx_l1_[mbPartIdx] = rbsp_data_->read_te(slice_->num_ref_idx_l1_active_minus1());
 
+    // for B_Direct_8x8, mvd 0 are inferred
     for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
         if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
             && sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() != SubMbPredMode::Pred_L1)
@@ -1222,6 +1266,7 @@ void MacroBlock::parse_sub_mb_pred()
                 for (int compIdx = 0; compIdx < 2; compIdx++)
                     mvd_l0_[mbPartIdx][subMbPartIdx][compIdx] = rbsp_data_->read_se();
 
+    // for B_Direct_8x8, mvd 1 are inferred
     for (int mbPartIdx = 0; mbPartIdx < 4; mbPartIdx++)
         if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8
             && sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() != SubMbPredMode::Pred_L0)
@@ -1608,6 +1653,8 @@ int MbTypeProxy::Intra16x16PredMode()
 // 6.4.2.1 Inverse macroblock partition scanning process
 std::pair<int, int> MacroBlock::Inverse_macroblock_partition_scanning_process(int mbPartIdx)
 {
+    assert(!mb_type_proxy_.is_intra_pred());
+
     int x = InverseRasterScan(mbPartIdx,
         mb_type_proxy_.MbPartWidth(),
         mb_type_proxy_.MbPartHeight(),
@@ -1634,6 +1681,8 @@ int MbTypeProxy::MbPartHeight()
 // 6.4.2.2 Inverse sub-macroblock partition scanning process
 std::pair<int, int> MacroBlock::Inverse_sub_macroblock_partition_scanning_process(int mbPartIdx, int subMbPartIdx)
 {
+    assert(!mb_type_proxy_.no_subMbPartIdx());
+
     int x, y;
     if (mb_type_proxy_.mb_type() == MbType::P_8x8
         || mb_type_proxy_.mb_type() == MbType::P_8x8ref0
@@ -1644,6 +1693,7 @@ std::pair<int, int> MacroBlock::Inverse_sub_macroblock_partition_scanning_proces
         y = InverseRasterScan(subMbPartIdx, sub_mb_type_proxy_[mbPartIdx].SubMbPartWidth(),
             sub_mb_type_proxy_[mbPartIdx].SubMbPartHeight(), 8, 1);
     } else {
+        /* MbType::B_Skip or MbType::B_Direct_16x16 */
         x = InverseRasterScan(subMbPartIdx, 4, 4, 8, 0);
         y = InverseRasterScan(subMbPartIdx, 4, 4, 8, 1);
     }
@@ -1712,9 +1762,12 @@ std::tuple<std::tuple<int, int, int>,
     std::tuple<int, int, int>,
     std::tuple<int, int, int>,
     std::tuple<int, int, int>>
-MacroBlock::Derivation_process_for_neighbouring_partitions(int mbPartIdx, int subMbPartIdx)
+MacroBlock::Derivation_process_for_neighbouring_partitions(
+    int mbPartIdx,
+    int subMbPartIdx,
+    SubMbType currSubMbType)
 {
-    auto func = [mbPartIdx, subMbPartIdx, this](int xD, int yD, bool is_C) -> std::tuple<int, int, int> {
+    auto func = [mbPartIdx, subMbPartIdx, currSubMbType, this](int xD, int yD, bool is_C) -> std::tuple<int, int, int> {
         auto [x, y] = Inverse_macroblock_partition_scanning_process(mbPartIdx);
         int xS = 0, yS = 0;
         int predPartWidth;
@@ -1730,7 +1783,7 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(int mbPartIdx, int su
 
         if (is_C) {
 
-            // P_Skip B_Skip B_Direct_16x16 are not considered as partitioned？
+            // P_Skip B_Skip B_Direct_16x16 are not considered as partitioned ?
             if (mb_type_proxy_.mb_type() == MbType::P_Skip
                 || mb_type_proxy_.mb_type() == MbType::B_Skip
                 || mb_type_proxy_.mb_type() == MbType::B_Direct_16x16)
@@ -1738,7 +1791,7 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(int mbPartIdx, int su
             else if (mb_type_proxy_.mb_type() == MbType::B_8x8) {
                 // TODO: direct_spatial_mv_pred_flag
                 // ?
-                if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() == SubMbType::B_Direct_8x8)
+                if (currSubMbType == SubMbType::B_Direct_8x8)
                     predPartWidth = 16;
                 else
                     predPartWidth = sub_mb_type_proxy_[mbPartIdx].SubMbPartWidth();
@@ -1762,14 +1815,23 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(int mbPartIdx, int su
         if (mbAddrN == INT32_MIN) // not available, this should be safe
             return { INT32_MIN, INT32_MIN, INT32_MIN };
 
-        auto t = slice_->get_mb_by_addr(mbAddrN).Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(xW, yW);
+        auto& mb_N = slice_->get_mb_by_addr(mbAddrN);
+
+        auto t = mb_N.Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(xW, yW);
         std::tuple<int, int, int> res = { mbAddrN, std::get<0>(t), std::get<1>(t) };
 
-        // TODO:
+        int t_mbPartIdx = std::get<1>(res);
+        int t_subMbPartIdx = std::get<2>(res);
+        assert(0 <= t_mbPartIdx && t_mbPartIdx < 4
+            && 0 <= t_subMbPartIdx && t_subMbPartIdx < 4);
+
+        // TODO: Revisit this condition
         // When the partition given by mbPartIdxN and subMbPartIdxN is not yet decoded, the macroblock
         // partition mbPartIdxN and the sub-macroblock partition subMbPartIdxN are marked as not
         // available.
         if (mbAddrN == CurrMbAddr_) {
+            if (t_mbPartIdx > mbPartIdx || (t_mbPartIdx == mbPartIdx && t_subMbPartIdx > subMbPartIdx))
+                res = { INT32_MIN, INT32_MIN, INT32_MIN };
         }
 
         return res;
@@ -2193,6 +2255,10 @@ bool MacroBlock::is_frame_macroblock()
 }
 
 // what if I_PCM P_Skip B_Skip ?
+//
+// I_PCM has been prevented in Derivation_process_for_the_luma_bs()
+// P_Skip/B_Skip don't care about transform_size_8x8_flag, and this
+// function should always return false for P_Skip/B_Skip
 //
 bool MacroBlock::has_luma_transform_coefficient_levels_in_x_y(
     int x, int y)
