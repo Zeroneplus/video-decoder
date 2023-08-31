@@ -87,9 +87,20 @@ int CH264PictureBase::Deblocking_filter_process()
     int32_t filterLeftMbEdgeFlag = 0;
     int32_t filterTopMbEdgeFlag = 0;
 
+    // debug
+    // printf("\n");
+
     for (i = 0; i <= PicSizeInMbs - 1; i++)
     {
         int32_t CurrMbAddrTemp = i;
+
+        // // debug
+        // printf("=== CurrMbAddr %d:\n", i);
+
+        if (CurrMbAddrTemp == 38) {
+            int ml = 1;
+            ml++;
+        }
         
         int32_t mbAddrA = 0;
         int32_t mbAddrB = 0;
@@ -152,6 +163,9 @@ int CH264PictureBase::Deblocking_filter_process()
         {
             filterTopMbEdgeFlag = 1;
         }
+
+        // debug
+        // printf("=== filter luma\n");
 
         //3. Given the variables fieldMbInFrameFlag, filterInternalEdgesFlag, filterLeftMbEdgeFlag 
         //and filterTopMbEdgeFlag the deblocking filtering is controlled as follows:
@@ -342,6 +356,9 @@ int CH264PictureBase::Deblocking_filter_process()
                 RETURN_IF_FAILED(ret != 0, ret);
             }
         }
+
+        // debug
+        // printf("=== filter cb\n");
 
         //e. When ChromaArrayType is not equal to 0, for the filtering of both chroma components, 
         //with iCbCr = 0 for Cb and iCbCr = 1 for Cr, the following ordered steps are specified:
@@ -815,6 +832,11 @@ int CH264PictureBase::Filtering_process_for_block_edges(int32_t MbaffFrameFlag, 
                 verticalEdgeFlag, mbAddr_p0, p, q, pp, qq);
         RETURN_IF_FAILED(ret != 0, ret);
 
+        // debug
+        // printf("pprime[%d, %d, %d], qprime[%d, %d, %d]\n",
+        //                 pp[0], pp[1], pp[2],
+        //                 qq[0], qq[1], qq[2]);
+
         //3. The input sample values pi and qi with i = 0..2 are replaced by the corresponding filtered result sample 
         //values p′i and q′i with i = 0..2 inside the sample array s′ as follows:
         for (i = 0; i <= 2; i++)
@@ -872,6 +894,9 @@ int CH264PictureBase::Filtering_process_for_a_set_of_samples_across_a_horizontal
         uint8_t mb_y_p0_chroma = m_h264_slice_header.m_sps.SubHeightC * mb_y_p0;
         uint8_t mb_x_q0_chroma = m_h264_slice_header.m_sps.SubWidthC * mb_x_q0;
         uint8_t mb_y_q0_chroma = m_h264_slice_header.m_sps.SubHeightC * mb_y_q0;
+
+        // debug
+        std::vector<int> debug{mb_x_p0_chroma, mb_y_p0_chroma, mb_x_q0_chroma, mb_y_q0_chroma};
 
         //8.7.2.1 Derivation process for the luma content dependent boundary filtering strength
         ret = Derivation_process_for_the_luma_content_dependent_boundary_filtering_strength(MbaffFrameFlag, p[0], q[0], 
@@ -998,6 +1023,9 @@ int CH264PictureBase::Derivation_process_for_the_luma_content_dependent_boundary
     int ret = 0;
     
     int32_t mixedModeEdgeFlag = 0;
+
+    // debug
+    std::vector<int> for_debug{mb_x_p0, mb_y_p0, mb_x_q0, mb_y_q0};
 
     //If MbaffFrameFlag is equal to 1 and the samples p0 and q0 are in different macroblock pairs, 
     //one of which is a field macroblock pair and the other is a frame macroblock pair,

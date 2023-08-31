@@ -701,6 +701,7 @@ int CH264PictureBase::end_decode_the_picture_and_get_a_new_empty_picture(CH264Pi
     
 //    char filename[600] = {0};
 //    sprintf(filename, "./out_%dx%d.%d.no_loop_filter.yuv", PicWidthInSamplesL, PicHeightInSamplesL, m_PicNumCnt);
+//    sprintf(filename, "./out_%dx%d.%04d.no_loop_filter.yuv", PicWidthInSamplesL, PicHeightInSamplesL, PicOrderCnt);
 //    ret = writeYUV(filename); //将环路滤波前的数据保存到磁盘
 
     //--------环路滤波------------
@@ -708,8 +709,14 @@ int CH264PictureBase::end_decode_the_picture_and_get_a_new_empty_picture(CH264Pi
     //RETURN_IF_FAILED(ret != 0, ret); //环路滤波在码流有问题时，基本上会返回失败
     
 //    sprintf(filename, "./out_%dx%d.%d.yuv", PicWidthInSamplesL, PicHeightInSamplesL, m_PicNumCnt);
+//    sprintf(filename, "./out_%dx%d.%04d.yuv", PicWidthInSamplesL, PicHeightInSamplesL, PicOrderCnt);
 //    ret = writeYUV(filename); //将解码后的数据保存到磁盘
     
+    // debug test
+    // 
+    //    if (PicOrderCnt >= 8)
+    //         exit(0);
+
     //--------标记图像参考列表------------
     //When the current picture is a reference picture and after all slices of the current picture have been decoded, 
     //the decoded reference picture marking process in clause 8.2.5 specifies how the current picture is used in the 

@@ -302,6 +302,12 @@ int CH264PictureBase::Decoding_process_for_reference_picture_lists_construction(
     //At the beginning of the decoding process for each slice, reference picture list RefPicList0, and for B slices RefPicList1, 
     //are derived as specified by the following ordered steps:
 
+    // debug
+    if (PicOrderCnt == 182) {
+        int l;
+        l -= 1;
+    }
+
     //1. An initial reference picture list RefPicList0 and for B slices RefPicList1 are derived as specified in clause 8.2.4.2
     //8.2.4.2 Initialisation process for reference picture lists
     ret = Initialisation_process_for_reference_picture_lists(dpb, RefPicList0, RefPicList1);

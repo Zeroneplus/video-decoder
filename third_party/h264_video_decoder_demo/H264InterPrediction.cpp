@@ -441,6 +441,17 @@ int CH264PictureBase::Inter_prediction_process()
 
     CH264MacroBlock &mb = m_mbs[CurrMbAddr];
     
+    if (PicOrderCnt == 182) {
+        // debug
+        int lk = 0;
+        lk -= 3;
+    }
+    if (CurrMbAddr == 60) {
+        // debug
+        int lk = 0;
+        lk -= 3;
+    }
+    
     int32_t isMbAff = (slice_header.MbaffFrameFlag == 1 && mb.mb_field_decoding_flag == 1) ? 1 : 0;
 
     //--------------------------------------------
@@ -452,6 +463,11 @@ int CH264PictureBase::Inter_prediction_process()
     {
         NumMbPart = mb.m_NumMbPart;
     }
+
+    // debug
+    std::vector<std::vector<int>> predL(16, std::vector<int>(16, 0));
+    std::vector<std::vector<int>> predCb(8, std::vector<int>(8, 0));
+    std::vector<std::vector<int>> predCr(8, std::vector<int>(8, 0));
 
     //--------------------------------------------
     for (int mbPartIdx = 0; mbPartIdx <= NumMbPart - 1; mbPartIdx++)
@@ -507,6 +523,12 @@ int CH264PictureBase::Inter_prediction_process()
             //------------------------------------
             CH264PictureBase * refPicL0 = NULL;
             CH264PictureBase * refPicL1 = NULL;
+
+            //debug
+            if (mbPartIdx == 2) {
+                int lp = 0;
+                lp += 1;
+            }
 
             //1. The derivation process for motion vector components and reference indices as specified in clause 8.4.1 is invoked.
             //8.4.1 Derivation process for motion vector components and reference indices
@@ -588,6 +610,27 @@ int CH264PictureBase::Inter_prediction_process()
                         logWDCr, w0Cr, w1Cr, o0Cr, o1Cr,
                         predPartL, predPartCb, predPartCr);
             RETURN_IF_FAILED(ret != 0, -1);
+
+            // debug
+            std::vector<std::vector<int>> t1(partWidth, std::vector<int>(partHeight));
+            std::vector<std::vector<int>> t2(partWidthC, std::vector<int>(partHeightC));
+            std::vector<std::vector<int>> t3(partWidthC, std::vector<int>(partHeightC));
+            for (int x = 0; x < partWidth; x++){
+                for (int y = 0; y < partHeight; y++){
+                    t1[x][y] = predPartL[ y * partWidth + x ];
+
+                    predL[ xP + xS + x][ yP + yS + y ] = t1[ x][ y ];
+                }
+            }
+            for (int x = 0; x < partWidthC; x++){
+                for (int y = 0; y < partHeightC; y++){
+                    t2[x][y] = predPartCb[ y * partWidthC + x ];
+                    t3[x][y] = predPartCr[ y * partWidthC + x ];
+
+                    predCb[ xP / 2 + xS / 2 + x][ yP / 2 + yS / 2 + y ] = t2[ x][ y ];
+                    predCr[ xP / 2 + xS / 2 + x][ yP / 2 + yS / 2 + y ] = t3[ x][ y ];
+                }
+            }
 
             //----------------------------------
             mb.m_MvL0[ mbPartIdx ][ subMbPartIdx ][0] = mvL0[0];
@@ -2068,6 +2111,21 @@ int CH264PictureBase::Decoding_process_for_Inter_prediction_samples(int32_t mbPa
     uint8_t predPartL0Cr[256] = {0};
     uint8_t predPartL1Cr[256] = {0};
 
+    //debug
+    if (mbPartIdx == 2) {
+        int lp = 0;
+        lp += 1;
+    }
+
+    std::vector<std::vector<int>> PredPartL0L(partWidth, std::vector<int>(partHeight));
+    std::vector<std::vector<int>> PredPartL1L(partWidth, std::vector<int>(partHeight));
+
+    std::vector<std::vector<int>> PredPartL0Cb(partWidthC, std::vector<int>(partHeightC));
+    std::vector<std::vector<int>> PredPartL1Cb(partWidthC, std::vector<int>(partHeightC));
+
+    std::vector<std::vector<int>> PredPartL0Cr(partWidthC, std::vector<int>(partHeightC));
+    std::vector<std::vector<int>> PredPartL1Cr(partWidthC, std::vector<int>(partHeightC));
+
     //---------------------------
     if (predFlagL0 == 1)
     {
@@ -2081,6 +2139,20 @@ int CH264PictureBase::Decoding_process_for_Inter_prediction_samples(int32_t mbPa
         ret = Fractional_sample_interpolation_process(mbPartIdx, subMbPartIdx, partWidth, partHeight, partWidthC, partHeightC, xAL, yAL,
            mvL0, mvCL0, refPicL0, predPartL0L, predPartL0Cb, predPartL0Cr);
         RETURN_IF_FAILED(ret, -1);
+
+        // debug
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                PredPartL0L[x][y] = predPartL0L[ y * partWidth + x ];
+            }
+        }
+        for (int x = 0; x < partWidthC; x++) {
+            for (int y = 0; y < partHeightC; y++) {
+                PredPartL0Cb[x][y] = predPartL0Cb[ y * partWidthC + x ];
+                PredPartL0Cr[x][y] = predPartL0Cr[ y * partWidthC + x ];
+            }
+        }
+
     }
     
     if (predFlagL1 == 1)
@@ -2095,6 +2167,20 @@ int CH264PictureBase::Decoding_process_for_Inter_prediction_samples(int32_t mbPa
         ret = Fractional_sample_interpolation_process(mbPartIdx, subMbPartIdx, partWidth, partHeight, partWidthC, partHeightC, xAL, yAL,
            mvL1, mvCL1, refPicL1, predPartL1L, predPartL1Cb, predPartL1Cr);
         RETURN_IF_FAILED(ret, -1);
+
+        // debug
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                PredPartL1L[x][y] = predPartL1L[ y * partWidth + x ];
+            }
+        }
+        for (int x = 0; x < partWidthC; x++) {
+            for (int y = 0; y < partHeightC; y++) {
+                PredPartL1Cb[x][y] = predPartL1Cb[ y * partWidthC + x ];
+                PredPartL1Cr[x][y] = predPartL1Cr[ y * partWidthC + x ];
+            }
+        }
+
     }
 
     //----------------------------
