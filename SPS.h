@@ -162,6 +162,16 @@ public:
     int PicWidthInMbs() { return PicWidthInMbs_; }
     int PicWidthInSamplesL() { return PicWidthInSamplesL_; } /* 16 * PicWidthInMbs() */
     int PicWidthInSamplesC() { return MbWidthC() * PicWidthInMbs(); }
+    int PicHeightInSamplesL()
+    {
+        // only consider frame
+        return PicHeightInMapUnits_ * 16;
+    }
+    int PicHeightInSamplesC()
+    {
+        // only consider frame
+        return PicHeightInMapUnits_ * MbHeightC();
+    }
     int MaxFrameNum() { return MaxFrameNum_; }
     int MaxPicOrderCntLsb() { return MaxPicOrderCntLsb_; }
     int ExpectedDeltaPerPicOrderCntCycle() { return ExpectedDeltaPerPicOrderCntCycle_; }

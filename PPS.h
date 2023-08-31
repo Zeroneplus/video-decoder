@@ -32,9 +32,19 @@ public:
         return weighted_pred_flag_;
     }
 
+    bool weighted_pred_flag()
+    {
+        return weighted_pred();
+    }
+
     int weighted_bipred()
     {
         return weighted_bipred_idc_;
+    }
+
+    int weighted_bipred_idc()
+    {
+        return weighted_bipred();
     }
 
     bool entropy_coding_mode()
