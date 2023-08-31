@@ -11,7 +11,7 @@
 
 int main(int argn, char** argv)
 {
-    spdlog::set_level(spdlog::level::err);
+    spdlog::set_level(spdlog::level::warn);
 
     if (argn < 2) {
         spdlog::error("Too less args");
@@ -32,7 +32,8 @@ int main(int argn, char** argv)
     std::shared_ptr<NalUnit::RbspData> rbsp;
     enum NalUnitType nal_unit_type;
 
-    int ctrl_num = 5;
+    int ctrl_num = 49;
+    spdlog::warn("Now we will decode {} slices", ctrl_num + 1);
 
     while ((nal = st->get_nal_unit())) {
         spdlog::warn("============= start new nal =============", nal->size());
