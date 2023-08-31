@@ -1,4 +1,6 @@
 
+#include <cstring>
+
 #include "Slice.h"
 #include "VideoDecoder.h"
 
@@ -893,6 +895,8 @@ void Slice::set_ref_list_P(std::vector<std::tuple<int, std::shared_ptr<Slice>>> 
 
     // add a dummy entry for ref pic list modification
     ref_list_P_0_.push_back({});
+
+    RefPicList0_ = &ref_list_P_0_;
 }
 
 void Slice::set_ref_list_B(
@@ -920,6 +924,9 @@ void Slice::set_ref_list_B(
 
     // add a dummy entry for modification
     ref_list_B_1_.push_back({});
+
+    RefPicList0_ = &ref_list_B_0_;
+    RefPicList1_ = &ref_list_B_1_;
 }
 
 void Slice::modification_process_for_reference_picture_lists()
@@ -1296,7 +1303,7 @@ int Slice::parse_slice_data(VideoDecoder* decoder)
                         mb->parse_P_Skip();
                         // spdlog::error("has P Skip");
                     } else if (is_B_slice()) {
-                        mb->parse_P_Skip();
+                        mb->parse_B_Skip();
                         // spdlog::error("has B Skip");
                     }
 
@@ -1605,19 +1612,19 @@ int Slice::get_constructed_luma(int x, int y)
     return y_data_[x + y * PicWidthL];
 }
 
-int Slice::get_constructed_chroma(int idx, int x, int y)
+int Slice::get_constructed_chroma(int iCbCr, int x, int y)
 {
     int PicWidthC = sps_->PicWidthInSamplesC();
     int FrameHeightC = sps_->FrameHeightInMbs() * sps_->MbHeightC();
 
     if (x < 0 || y < 0
         || x >= PicWidthC || y >= FrameHeightC
-        || idx < 0 || idx > 1) {
+        || iCbCr < 0 || iCbCr > 1) {
         assert(false);
         return INT32_MIN;
     }
 
-    return idx == 0 ? u_data_[x + y * PicWidthC] : v_data_[x + y * PicWidthC];
+    return iCbCr == 0 ? u_data_[x + y * PicWidthC] : v_data_[x + y * PicWidthC];
 }
 
 void Slice::set_constructed_luma(int x, int y, int value)
@@ -1631,17 +1638,17 @@ void Slice::set_constructed_luma(int x, int y, int value)
     y_data_[x + y * PicWidthL] = value;
 }
 
-void Slice::set_constructed_chroma(int idx, int x, int y, int value)
+void Slice::set_constructed_chroma(int iCbCr, int x, int y, int value)
 {
     int PicWidthC = sps_->PicWidthInSamplesC();
     int FrameHeightC = sps_->FrameHeightInMbs() * sps_->MbHeightC();
 
     if (x < 0 || y < 0
         || x >= PicWidthC || y >= FrameHeightC
-        || idx < 0 || idx > 1)
+        || iCbCr < 0 || iCbCr > 1)
         assert(false);
 
-    if (idx == 0)
+    if (iCbCr == 0)
         u_data_[x + y * PicWidthC] = value;
     else
         v_data_[x + y * PicWidthC] = value;
@@ -1649,8 +1656,17 @@ void Slice::set_constructed_chroma(int idx, int x, int y, int value)
 
 void Slice::write_yuv(std::string file_name)
 {
+    // record the output order of the picture
+    static int output_cnt = 0;
+    char output_cnt_str[20] = { 0 };
+    snprintf(output_cnt_str, sizeof(output_cnt_str), "%04d", output_cnt);
+    output_cnt++;
+
+    char poc_str[20] = { 0 };
+    snprintf(poc_str, sizeof(poc_str), "%04d", PicOrderCnt());
     if (!file_name.size())
-        file_name = std::to_string(PicOrderCnt()) + pic_type_str() + ".yuv420p";
+        // file_name = output_cnt_str + std::string("_") + std::string(poc_str) + pic_type_str() + ".yuv420p";
+        file_name = std::string(poc_str) + pic_type_str() + ".yuv";
 
     FILE* f = fopen(file_name.c_str(), "wb");
     if (!f) {
@@ -1749,59 +1765,107 @@ void Slice::Deblocking_filter_process()
                            &_0,
                            &_4,
                            &_8,
-                           &_12](int iCbCr,
-                           bool transform_size_8x8_flag,
+                           &_12](bool transform_size_8x8_flag,
                            bool filterLeftMbEdgeFlag,
                            bool filterTopMbEdgeFlag,
                            bool filterInternalEdgesFlag,
                            bool fieldMbInFrameFlag,
                            int CurrMbAddr) {
-        if (filterLeftMbEdgeFlag)
+        if (filterLeftMbEdgeFlag) {
             Filtering_process_for_block_edges(
                 true /* chromaEdgeFlag */,
-                iCbCr /* iCbCr */,
+                0 /* iCbCr */,
                 true /* verticalEdgeFlag */,
                 fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                 _0 /* xE */,
                 _0_to_MbHeightC /* yE */,
                 CurrMbAddr);
 
+            Filtering_process_for_block_edges(
+                true /* chromaEdgeFlag */,
+                1 /* iCbCr */,
+                true /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0 /* xE */,
+                _0_to_MbHeightC /* yE */,
+                CurrMbAddr);
+        }
+
         if (filterInternalEdgesFlag) {
-            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag)
+            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag) {
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    0 /* iCbCr */,
                     true /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _4 /* xE */,
                     _0_to_MbHeightC /* yE */,
                     CurrMbAddr);
 
-            if (sps_->ChromaArrayType() == 3)
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    1 /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _4 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+            }
+
+            if (sps_->ChromaArrayType() == 3) {
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    0 /* iCbCr */,
                     true /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _8 /* xE */,
                     _0_to_MbHeightC /* yE */,
                     CurrMbAddr);
 
-            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag)
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    1 /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _8 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+            }
+
+            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag) {
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    0 /* iCbCr */,
                     true /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _12 /* xE */,
                     _0_to_MbHeightC /* yE */,
                     CurrMbAddr);
+
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    1 /* iCbCr */,
+                    true /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _12 /* xE */,
+                    _0_to_MbHeightC /* yE */,
+                    CurrMbAddr);
+            }
         }
 
         if (filterTopMbEdgeFlag) {
             Filtering_process_for_block_edges(
                 true /* chromaEdgeFlag */,
-                iCbCr /* iCbCr */,
+                0 /* iCbCr */,
+                false /* verticalEdgeFlag */,
+                fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                _0_to_MbWidthC /* xE */,
+                _0 /* yE */,
+                CurrMbAddr);
+
+            Filtering_process_for_block_edges(
+                true /* chromaEdgeFlag */,
+                1 /* iCbCr */,
                 false /* verticalEdgeFlag */,
                 fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                 _0_to_MbWidthC /* xE */,
@@ -1810,52 +1874,94 @@ void Slice::Deblocking_filter_process()
         }
 
         if (filterInternalEdgesFlag) {
-            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag)
+            if (sps_->ChromaArrayType() != 3 || !transform_size_8x8_flag) {
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    0 /* iCbCr */,
                     false /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _0_to_MbWidthC /* xE */,
                     _4 /* yE */,
                     CurrMbAddr);
 
-            if (sps_->ChromaArrayType() != 1)
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    1 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _4 /* yE */,
+                    CurrMbAddr);
+            }
+
+            if (sps_->ChromaArrayType() != 1) {
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    0 /* iCbCr */,
                     false /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _0_to_MbWidthC /* xE */,
                     _8 /* yE */,
                     CurrMbAddr);
 
-            if (sps_->ChromaArrayType() == 2)
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    1 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _8 /* yE */,
+                    CurrMbAddr);
+            }
+
+            if (sps_->ChromaArrayType() == 2) {
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    0 /* iCbCr */,
                     false /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _0_to_MbWidthC /* xE */,
                     _12 /* yE */,
                     CurrMbAddr);
 
-            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag)
                 Filtering_process_for_block_edges(
                     true /* chromaEdgeFlag */,
-                    iCbCr /* iCbCr */,
+                    1 /* iCbCr */,
                     false /* verticalEdgeFlag */,
                     fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
                     _0_to_MbWidthC /* xE */,
                     _12 /* yE */,
                     CurrMbAddr);
+            }
+
+            if (sps_->ChromaArrayType() == 3 && !transform_size_8x8_flag) {
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    0 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _12 /* yE */,
+                    CurrMbAddr);
+
+                Filtering_process_for_block_edges(
+                    true /* chromaEdgeFlag */,
+                    1 /* iCbCr */,
+                    false /* verticalEdgeFlag */,
+                    fieldMbInFrameFlag /* fieldModeInFrameFilteringFlag */,
+                    _0_to_MbWidthC /* xE */,
+                    _12 /* yE */,
+                    CurrMbAddr);
+            }
         }
     };
 
     for (int CurrMbAddr = 0; CurrMbAddr < PicSizeInMbs; CurrMbAddr++) {
 
-        // spdlog::trace("=== CurrMbAddr {}:", CurrMbAddr);
-        if (CurrMbAddr == 5) {
+        // debug
+        // printf("=== CurrMbAddr %d:\n", CurrMbAddr);
+
+        if (CurrMbAddr == 38) {
             int ml = 1;
             ml++;
         }
@@ -1870,7 +1976,7 @@ void Slice::Deblocking_filter_process()
             filterTopMbEdgeFlag]
             = func(CurrMbAddr, mbAddrA, mbAddrB);
 
-        // spdlog::trace("=== filter luma");
+        // printf("=== filter luma\n");
 
         // filter luma
         if (filterLeftMbEdgeFlag)
@@ -1963,22 +2069,9 @@ void Slice::Deblocking_filter_process()
         // chroma
         assert(sps_->ChromaArrayType() == 1 || sps_->ChromaArrayType() == 2);
 
-        // spdlog::trace("=== filter cb");
+        // printf("=== filter cb\n");
 
-        chroma_filt(
-            0 /* iCbCr */,
-            transform_size_8x8_flag,
-            filterLeftMbEdgeFlag,
-            filterTopMbEdgeFlag,
-            filterInternalEdgesFlag,
-            fieldMbInFrameFlag,
-            CurrMbAddr);
-
-        // spdlog::trace("=== filter cr");
-
-        chroma_filt(
-            1 /* iCbCr */,
-            transform_size_8x8_flag,
+        chroma_filt(transform_size_8x8_flag,
             filterLeftMbEdgeFlag,
             filterTopMbEdgeFlag,
             filterInternalEdgesFlag,
@@ -2080,7 +2173,7 @@ void Slice::Filtering_process_for_block_edges(
                 q_ref_y_[0] /* y_of_q0 */,
                 data_type == DataType::cb /* is_cb */);
 
-            // spdlog::trace("pprime[{}, {}, {}], qprime[{}, {}, {}]",
+            // printf("pprime[%d, %d, %d], qprime[%d, %d, %d]\n",
             //     pprime[0], pprime[1], pprime[2],
             //     qprime[0], qprime[1], qprime[2]);
 
@@ -2383,7 +2476,80 @@ int Slice::Derivation_process_for_the_luma_bs(
         if (mixedModeEdgeFlag)
             return 1;
 
-        // TODO
+        // TODO ?
+        assert(mb_p.is_inter_pred() && mb_q.is_inter_pred());
+
+        auto [mbPartIdx_p0, subMbPartIdx_p0] = mb_p.Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(mod_x_of_p0, mod_y_of_p0);
+        auto [mbPartIdx_q0, subMbPartIdx_q0] = mb_q.Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(mod_x_of_q0, mod_y_of_q0);
+
+        // borrow from h264_video_decoder_demo
+        Slice* RefPicList0_p0 = mb_p.get_RefPicList0_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        Slice* RefPicList1_p0 = mb_p.get_RefPicList1_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        Slice* RefPicList0_q0 = mb_q.get_RefPicList0_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+        Slice* RefPicList1_q0 = mb_q.get_RefPicList1_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+
+        int PredFlagL0_p0 = mb_p.get_PredFlagL0_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int PredFlagL1_p0 = mb_p.get_PredFlagL1_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int PredFlagL0_q0 = mb_q.get_PredFlagL0_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+        int PredFlagL1_q0 = mb_q.get_PredFlagL1_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+
+        int MvL0_p0_x = mb_p.get_MvL0_x_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int MvL0_p0_y = mb_p.get_MvL0_y_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int MvL0_q0_x = mb_q.get_MvL0_x_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+        int MvL0_q0_y = mb_q.get_MvL0_y_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+
+        int MvL1_p0_x = mb_p.get_MvL1_x_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int MvL1_p0_y = mb_p.get_MvL1_y_by_part(mbPartIdx_p0, subMbPartIdx_p0);
+        int MvL1_q0_x = mb_q.get_MvL1_x_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+        int MvL1_q0_y = mb_q.get_MvL1_y_by_part(mbPartIdx_q0, subMbPartIdx_q0);
+
+        if (((RefPicList0_p0 == RefPicList0_q0 && RefPicList1_p0 == RefPicList1_q0)
+                || (RefPicList0_p0 == RefPicList1_q0 && RefPicList1_p0 == RefPicList0_q0))
+            && (PredFlagL0_p0 + PredFlagL1_p0) == (PredFlagL0_q0 + PredFlagL1_q0)) {
+        } else {
+            return 1;
+        }
+
+        if ((PredFlagL0_p0 == 1 && PredFlagL1_p0 == 0) && (PredFlagL0_q0 == 1 && PredFlagL1_q0 == 0)
+            && (std::abs(MvL0_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL0_q0_y) >= 4)) {
+            return 1;
+        } else if ((PredFlagL0_p0 == 1 && PredFlagL1_p0 == 0) && (PredFlagL0_q0 == 0 && PredFlagL1_q0 == 1)
+            && (std::abs(MvL0_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL1_q0_y) >= 4)) {
+            return 1;
+        } else if ((PredFlagL0_p0 == 0 && PredFlagL1_p0 == 1) && (PredFlagL0_q0 == 1 && PredFlagL1_q0 == 0)
+            && (std::abs(MvL1_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL0_q0_y) >= 4)) {
+            return 1;
+        } else if ((PredFlagL0_p0 == 0 && PredFlagL1_p0 == 1) && (PredFlagL0_q0 == 0 && PredFlagL1_q0 == 1)
+            && (std::abs(MvL1_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL1_q0_y) >= 4)) {
+            return 1;
+        }
+
+        if ((PredFlagL0_p0 == 1 && PredFlagL1_p0 == 1) && (RefPicList0_p0 != RefPicList1_p0)
+            && (PredFlagL0_q0 == 1 && PredFlagL1_q0 == 1)
+            && ((RefPicList0_q0 == RefPicList0_p0 && RefPicList1_q0 == RefPicList1_p0)
+                || (RefPicList0_q0 == RefPicList1_p0 && RefPicList1_q0 == RefPicList0_p0))) {
+            if (RefPicList0_q0 == RefPicList0_p0
+                && ((std::abs(MvL0_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL0_q0_y) >= 4)
+                    || (std::abs(MvL1_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL1_q0_y) >= 4))) {
+                return 1;
+            } else if (RefPicList0_q0 == RefPicList1_p0
+                && ((std::abs(MvL1_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL0_q0_y) >= 4)
+                    || (std::abs(MvL0_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL1_q0_y) >= 4))) {
+                return 1;
+            }
+        }
+
+        if ((PredFlagL0_p0 == 1 && PredFlagL1_p0 == 1) && (RefPicList0_p0 == RefPicList1_p0)
+            && (PredFlagL0_q0 == 1 && PredFlagL1_q0 == 1) && (RefPicList0_q0 == RefPicList1_q0)
+            && RefPicList0_q0 == RefPicList0_p0) {
+            if ((std::abs(MvL0_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL0_q0_y) >= 4)
+                || (std::abs(MvL1_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL1_q0_y) >= 4)
+
+                    && (std::abs(MvL0_p0_x - MvL1_q0_x) >= 4 || std::abs(MvL0_p0_y - MvL1_q0_y) >= 4)
+                || (std::abs(MvL1_p0_x - MvL0_q0_x) >= 4 || std::abs(MvL1_p0_y - MvL0_q0_y) >= 4)) {
+                return 1;
+            }
+        }
     }
 
     return 0;
@@ -2601,4 +2767,41 @@ Slice::Filtering_process_for_edges_for_bS_equal_to_4(
     }
 
     return { pprime, qprime };
+}
+
+Slice* Slice::get_RefPicList0(int idx)
+{
+    auto& RefPicList0 = *RefPicList0_;
+
+    return std::get<1>(RefPicList0[idx]).get();
+}
+
+Slice* Slice::get_RefPicList1(int idx)
+{
+    auto& RefPicList1 = *RefPicList1_;
+
+    return std::get<1>(RefPicList1[idx]).get();
+}
+
+bool Slice::mb_adaptive_frame_field_flag()
+{
+    return sps_->MbaffFlag();
+}
+
+int Slice::find_lowest_Slice_idx_in_RefPicList0(Slice* refPicCol)
+{
+    auto& RefPicList0 = *RefPicList0_;
+
+    for (int i = 0; i < RefPicList0.size(); i++) {
+        auto t = std::get<1>(RefPicList0[i]).get();
+        if (t == refPicCol)
+            return i;
+    }
+    assert(false);
+    return INT32_MIN;
+}
+
+int Slice::DiffPicOrderCnt(Slice* a, Slice* b)
+{
+    return a->PicOrderCnt() - b->PicOrderCnt();
 }

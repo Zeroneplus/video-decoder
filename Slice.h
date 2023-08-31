@@ -59,6 +59,8 @@ enum MarkScope {
 
 class Slice : public std::enable_shared_from_this<Slice> {
 public:
+    friend class MacroBlock;
+
     Slice() = default;
     Slice(std::shared_ptr<NalUnit::RbspData> rbsp);
     int parse_slice_header(VideoDecoder* decoder);
@@ -148,6 +150,11 @@ public:
     bool is_SP_slice()
     {
         return (slice_type_enum_ == SliceType::SP) || (slice_type_enum_ == SliceType::SP_high);
+    }
+
+    bool is_P_or_SP()
+    {
+        return is_P_slice() || is_SP_slice();
     }
 
     bool is_SI_slice()
@@ -499,9 +506,9 @@ public:
 
     void set_constructed_luma(int x, int y, int value);
 
-    int get_constructed_chroma(int idx, int x, int y);
+    int get_constructed_chroma(int iCbCr, int x, int y);
 
-    void set_constructed_chroma(int idx, int x, int y, int value);
+    void set_constructed_chroma(int iCbCr, int x, int y, int value);
 
     void write_yuv(std::string file_name);
 
@@ -595,6 +602,20 @@ public:
     int get_mb_addr_from_x_y(int x, int y);
 
     MacroBlock& get_mb_from_x_y(int x, int y);
+
+    bool direct_spatial_mv_pred_flag()
+    {
+        return direct_spatial_mv_pred_flag_;
+    }
+
+    Slice* get_RefPicList0(int idx);
+    Slice* get_RefPicList1(int idx);
+
+    bool mb_adaptive_frame_field_flag();
+
+    int find_lowest_Slice_idx_in_RefPicList0(Slice* refPicCol);
+
+    int DiffPicOrderCnt(Slice* a, Slice* b);
 
 private:
     std::shared_ptr<NalUnit::RbspData> rbsp_data_;
@@ -694,6 +715,7 @@ private:
         ref_list_B_0_init_,
         ref_list_B_1_init_;
     int picNumL0Pred_ = INT32_MIN, picNumL1Pred_ = INT32_MIN;
+    std::vector<std::tuple<int, std::shared_ptr<Slice>>>*RefPicList0_, *RefPicList1_;
 
     // yuv data
     std::vector<int> yuv_data_;
