@@ -1,4 +1,6 @@
 
+#include <functional>
+
 #include "Cavlc.h"
 #include "Slice.h"
 #include "spdlog/spdlog.h"
@@ -992,6 +994,8 @@ void MacroBlock::parse_P_Skip()
     mb_type_ = (int)MbType::P_Skip;
     mb_type_proxy_ = MbTypeProxy { (enum MbType)mb_type_, slice_, this };
 
+    Inter_prediction_process();
+
     // update QP_Y_PREV
     slice_->update_QP_Y_PREV(QPY());
 }
@@ -1000,6 +1004,8 @@ void MacroBlock::parse_B_Skip()
 {
     mb_type_ = (int)MbType::B_Skip;
     mb_type_proxy_ = MbTypeProxy { (enum MbType)mb_type_, slice_, this };
+
+    Inter_prediction_process();
 
     // update QP_Y_PREV
     slice_->update_QP_Y_PREV(QPY());
@@ -1114,6 +1120,8 @@ void MacroBlock::parse_MacroBlock()
         Specification_of_transform_decoding_process_for_chroma_samples(
             predCr,
             false);
+    } else {
+        Inter_prediction_process();
     }
 
     // update QP_Y_PREV
@@ -1681,7 +1689,8 @@ int MbTypeProxy::MbPartHeight()
 // 6.4.2.2 Inverse sub-macroblock partition scanning process
 std::pair<int, int> MacroBlock::Inverse_sub_macroblock_partition_scanning_process(int mbPartIdx, int subMbPartIdx)
 {
-    assert(!mb_type_proxy_.no_subMbPartIdx());
+    if (mb_type_proxy_.no_subMbPartIdx())
+        assert(subMbPartIdx == 0);
 
     int x, y;
     if (mb_type_proxy_.mb_type() == MbType::P_8x8
@@ -1754,9 +1763,6 @@ MacroBlock::Derivation_process_for_macroblock_and_sub_macroblock_partition_indic
     return { mbPartIdx, subMbPartIdx };
 }
 
-// when B_Skip and B_Direct_16x16 are decoded, consider as a whole MB
-// when B_Skip and B_Direct_16x16 are used as a neighbor reference MB, consider as partitioned
-//
 // 6.4.11.7 Derivation process for neighbouring partitions
 std::tuple<std::tuple<int, int, int>,
     std::tuple<int, int, int>,
@@ -1767,21 +1773,25 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(
     int subMbPartIdx,
     SubMbType currSubMbType)
 {
+    // only inter pred has partitions
+    assert(is_inter_pred());
+
     auto func = [mbPartIdx, subMbPartIdx, currSubMbType, this](int xD, int yD, bool is_C) -> std::tuple<int, int, int> {
         auto [x, y] = Inverse_macroblock_partition_scanning_process(mbPartIdx);
         int xS = 0, yS = 0;
-        int predPartWidth;
 
         // B_Skip and B_Direct_16x16 is not sub partitioned?
         if (mb_type_proxy_.mb_type() == MbType::P_8x8
             || mb_type_proxy_.mb_type() == MbType::P_8x8ref0
             || mb_type_proxy_.mb_type() == MbType::B_8x8) {
+
             auto tmp = Inverse_sub_macroblock_partition_scanning_process(mbPartIdx, subMbPartIdx);
             xS = tmp.first;
             yS = tmp.second;
         }
 
         if (is_C) {
+            int predPartWidth;
 
             // P_Skip B_Skip B_Direct_16x16 are not considered as partitioned ?
             if (mb_type_proxy_.mb_type() == MbType::P_Skip
@@ -1820,8 +1830,7 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(
         auto t = mb_N.Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(xW, yW);
         std::tuple<int, int, int> res = { mbAddrN, std::get<0>(t), std::get<1>(t) };
 
-        int t_mbPartIdx = std::get<1>(res);
-        int t_subMbPartIdx = std::get<2>(res);
+        auto [t_mbPartIdx, t_subMbPartIdx] = t;
         assert(0 <= t_mbPartIdx && t_mbPartIdx < 4
             && 0 <= t_subMbPartIdx && t_subMbPartIdx < 4);
 
@@ -1831,7 +1840,7 @@ MacroBlock::Derivation_process_for_neighbouring_partitions(
         // available.
         if (mbAddrN == CurrMbAddr_) {
             if (t_mbPartIdx > mbPartIdx || (t_mbPartIdx == mbPartIdx && t_subMbPartIdx > subMbPartIdx))
-                res = { INT32_MIN, INT32_MIN, INT32_MIN };
+                return { INT32_MIN, INT32_MIN, INT32_MIN };
         }
 
         return res;
@@ -2256,7 +2265,7 @@ bool MacroBlock::is_frame_macroblock()
 
 // what if I_PCM P_Skip B_Skip ?
 //
-// I_PCM has been prevented in Derivation_process_for_the_luma_bs()
+// I_PCM has been excluded in Derivation_process_for_the_luma_bs()
 // P_Skip/B_Skip don't care about transform_size_8x8_flag, and this
 // function should always return false for P_Skip/B_Skip
 //
@@ -2268,10 +2277,26 @@ bool MacroBlock::has_luma_transform_coefficient_levels_in_x_y(
         assert(false);
     } else {
 
+        // TODO revisit this
         int luma4x4BlkIdx = slice_->Derivation_process_for_4x4_luma_block_indices(x, y);
-        int i8x8 = luma4x4BlkIdx / 4;
 
-        return mb_type_proxy_.CodedBlockPatternLuma() & (1 << i8x8);
+        if (mb_type_proxy_.MbPartPredMode_0() == MbPartPredMode::Intra_16x16) {
+            if (i16x16AClevel_non_zeros_[luma4x4BlkIdx] == INT32_MIN) {
+                int non_zeros = 0;
+                for (int i = 0; i < 15; i++)
+                    non_zeros += (i16x16AClevel_[luma4x4BlkIdx][i] ? 1 : 0);
+                i16x16AClevel_non_zeros_[luma4x4BlkIdx] = non_zeros;
+            }
+            return i16x16AClevel_non_zeros_[luma4x4BlkIdx] > 0;
+        } else {
+            if (level4x4_non_zeros_[luma4x4BlkIdx] == INT32_MIN) {
+                int non_zeros = 0;
+                for (int i = 0; i < 16; i++)
+                    non_zeros += (level4x4_[luma4x4BlkIdx][i] ? 1 : 0);
+                level4x4_non_zeros_[luma4x4BlkIdx] = non_zeros;
+            }
+            return level4x4_non_zeros_[luma4x4BlkIdx] > 0;
+        }
     }
     return false;
 }
@@ -3591,4 +3616,2096 @@ void MacroBlock::Picture_construction_process_prior_to_deblocking_filter_process
             }
         }
     }
+}
+
+// 8.4 Inter prediction process
+//
+void MacroBlock::Inter_prediction_process()
+{
+    if (slice_->PicOrderCnt() == 182) {
+        // debug
+        int lo = 0;
+        lo += 2;
+    }
+    if (CurrMbAddr_ == 60) {
+        // debug
+        int lk = 0;
+        lk -= 3;
+    }
+
+    int SubWidthC = sps_->SubWidthC();
+    int SubHeightC = sps_->SubHeightC();
+    int MbWidthC = sps_->MbWidthC();
+    int MbHeightC = sps_->MbHeightC();
+
+    std::vector<std::vector<int>> predL(16, std::vector<int>(16, 0));
+    std::vector<std::vector<int>> predCb(MbWidthC, std::vector<int>(MbHeightC, 0));
+    std::vector<std::vector<int>> predCr(MbWidthC, std::vector<int>(MbHeightC, 0));
+
+    auto mb_type = mb_type_proxy_.mb_type();
+    int num_mbPartIdx;
+
+    // the NumMbPart() for B_Skip and B_Direct_16x16 are undefined in ITU Rec table xxx
+    if (mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16)
+        num_mbPartIdx = 4;
+    else
+        num_mbPartIdx = mb_type_proxy_.NumMbPart();
+
+    assert(num_mbPartIdx > 0 && num_mbPartIdx <= 4);
+
+    // usage of this?
+    int MvCnt = 0;
+
+    auto pred_func = [SubWidthC, SubHeightC, this](int mbPartIdx,
+                         int subMbPartIdx,
+                         int has_sub_idx,
+                         int partWidth,
+                         int partHeight,
+                         int partWidthC,
+                         int partHeightC,
+                         /* output */
+                         int& MvCnt,
+                         std::vector<std::vector<int>>& predL,
+                         std::vector<std::vector<int>>& predCb,
+                         std::vector<std::vector<int>>& predCr) {
+        auto&& [predPartL, predPartCb, predPartCr,
+            mvL0, mvL1, mvCL0, mvCL1,
+            refIdxL0, refIdxL1,
+            predFlagL0, predFlagL1]
+            = derive_predict(
+                mbPartIdx,
+                subMbPartIdx,
+                has_sub_idx,
+                partWidth,
+                partHeight,
+                partWidthC,
+                partHeightC,
+                /* output */
+                MvCnt /* int& */);
+        auto t1 = predPartL;
+        auto t2 = predPartCb;
+        auto t3 = predPartCr;
+
+        MvL0_[mbPartIdx][subMbPartIdx][0] = mvL0[0];
+        MvL0_[mbPartIdx][subMbPartIdx][1] = mvL0[1];
+        MvL1_[mbPartIdx][subMbPartIdx][0] = mvL1[0];
+        MvL1_[mbPartIdx][subMbPartIdx][1] = mvL1[1];
+        RefIdxL0_[mbPartIdx] = refIdxL0;
+        RefIdxL1_[mbPartIdx] = refIdxL1;
+        PredFlagL0_[mbPartIdx] = predFlagL0;
+        PredFlagL1_[mbPartIdx] = predFlagL1;
+
+        auto [xP, yP] = Inverse_macroblock_partition_scanning_process(mbPartIdx);
+
+        auto [xS, yS] = Inverse_sub_macroblock_partition_scanning_process(mbPartIdx, subMbPartIdx);
+
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                predL[xP + xS + x][yP + yS + y] = predPartL[x][y];
+            }
+        }
+        for (int x = 0; x < partWidthC; x++) {
+            for (int y = 0; y < partHeightC; y++) {
+                predCb[xP / SubWidthC + xS / SubWidthC + x][yP / SubHeightC + yS / SubHeightC + y]
+                    = predPartCb[x][y];
+
+                predCr[xP / SubWidthC + xS / SubWidthC + x][yP / SubHeightC + yS / SubHeightC + y]
+                    = predPartCr[x][y];
+            }
+        }
+    };
+
+    if (mb_type != MbType::P_8x8
+        && mb_type != MbType::P_8x8ref0
+        && mb_type != MbType::B_Skip
+        && mb_type != MbType::B_Direct_16x16
+        && mb_type != MbType::B_8x8) {
+
+        // no sub mb part
+
+        bool has_sub_idx = false;
+        int subMbPartIdx = 0;
+
+        int partWidth = mb_type_proxy_.MbPartWidth();
+        int partHeight = mb_type_proxy_.MbPartHeight();
+        int partWidthC = partWidth / SubWidthC;
+        int partHeightC = partHeight / SubHeightC;
+
+        for (int mbPartIdx = 0; mbPartIdx < num_mbPartIdx; mbPartIdx++) {
+
+            pred_func(mbPartIdx,
+                subMbPartIdx,
+                has_sub_idx,
+                partWidth,
+                partHeight,
+                partWidthC,
+                partHeightC,
+                /* output */
+                MvCnt /* int &*/,
+                predL /* std::vector<std::vector<int>>& */,
+                predCb /* std::vector<std::vector<int>>& */,
+                predCr /* std::vector<std::vector<int>>& */);
+        }
+    } else if (mb_type == MbType::P_8x8
+        || mb_type == MbType::P_8x8ref0
+        || mb_type == MbType::B_8x8) {
+
+        assert(num_mbPartIdx == 4);
+        bool has_sub_idx = true;
+
+        for (int mbPartIdx = 0; mbPartIdx < num_mbPartIdx; mbPartIdx++) {
+            if (sub_mb_type_proxy_[mbPartIdx].sub_mb_type() != SubMbType::B_Direct_8x8) {
+                int num_subMbPartIdx = sub_mb_type_proxy_[mbPartIdx].NumSubMbPart();
+                int partWidth = sub_mb_type_proxy_[mbPartIdx].SubMbPartWidth();
+                int partHeight = sub_mb_type_proxy_[mbPartIdx].SubMbPartHeight();
+                int partWidthC = partWidth / SubWidthC;
+                int partHeightC = partHeight / SubHeightC;
+
+                for (int subMbPartIdx = 0; subMbPartIdx < num_subMbPartIdx; subMbPartIdx++) {
+
+                    pred_func(mbPartIdx,
+                        subMbPartIdx,
+                        has_sub_idx,
+                        partWidth,
+                        partHeight,
+                        partWidthC,
+                        partHeightC,
+                        /* output */
+                        MvCnt /* int &*/,
+                        predL /* std::vector<std::vector<int>>& */,
+                        predCb /* std::vector<std::vector<int>>& */,
+                        predCr /* std::vector<std::vector<int>>& */);
+                }
+
+            } else {
+                assert(mb_type == MbType::B_8x8);
+
+                int num_subMbPartIdx = 4;
+                int partWidth = 4;
+                int partHeight = 4;
+                int partWidthC = partWidth / SubWidthC;
+                int partHeightC = partHeight / SubHeightC;
+
+                for (int subMbPartIdx = 0; subMbPartIdx < num_subMbPartIdx; subMbPartIdx++) {
+
+                    pred_func(mbPartIdx,
+                        subMbPartIdx,
+                        has_sub_idx,
+                        partWidth,
+                        partHeight,
+                        partWidthC,
+                        partHeightC,
+                        /* output */
+                        MvCnt /* int &*/,
+                        predL /* std::vector<std::vector<int>>& */,
+                        predCb /* std::vector<std::vector<int>>& */,
+                        predCr /* std::vector<std::vector<int>>& */);
+                }
+            }
+        }
+    } else if (mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16) {
+
+        bool has_sub_idx = true;
+
+        for (int mbPartIdx = 0; mbPartIdx < num_mbPartIdx; mbPartIdx++) {
+            int num_subMbPartIdx = 4;
+            int partWidth = 4;
+            int partHeight = 4;
+            int partWidthC = partWidth / SubWidthC;
+            int partHeightC = partHeight / SubHeightC;
+
+            for (int subMbPartIdx = 0; subMbPartIdx < num_subMbPartIdx; subMbPartIdx++) {
+
+                pred_func(mbPartIdx,
+                    subMbPartIdx,
+                    has_sub_idx,
+                    partWidth,
+                    partHeight,
+                    partWidthC,
+                    partHeightC,
+                    /* output */
+                    MvCnt /* int &*/,
+                    predL /* std::vector<std::vector<int>>& */,
+                    predCb /* std::vector<std::vector<int>>& */,
+                    predCr /* std::vector<std::vector<int>>& */);
+            }
+        }
+    }
+
+    for (int luma4x4BlkIdx = 0; luma4x4BlkIdx < 16; luma4x4BlkIdx++) {
+
+        Specification_of_transform_decoding_process_for_4x4_luma_residual_blocks(
+            predL,
+            luma4x4BlkIdx);
+    }
+
+    // chroma
+    Specification_of_transform_decoding_process_for_chroma_samples(
+        predCb,
+        true);
+
+    Specification_of_transform_decoding_process_for_chroma_samples(
+        predCr,
+        false);
+
+    // debug
+    int lo = 9;
+    lo -= 8;
+}
+
+// predPartL, predPartCb, predPartCr,
+// mvL0, mvL1, mvCL0, mvCL1,
+// refIdxL0, refIdxL1,
+// predFlagL0, predFlagL1
+//
+std::tuple<std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>,
+    std::array<int, 2>,
+    std::array<int, 2>,
+    std::array<int, 2>,
+    std::array<int, 2>,
+    int, int, int, int>
+MacroBlock::derive_predict(
+    int mbPartIdx,
+    int subMbPartIdx,
+    bool has_sub_idx,
+    int partWidth,
+    int partHeight,
+    int partWidthC,
+    int partHeightC,
+    /* output */
+    int& MvCnt)
+{
+    //debug
+    if (mbPartIdx == 2) {
+        int lp = 0;
+        lp += 1;
+    }
+
+    // 8.4.1
+    auto&& [mvL0, mvL1, mvCL0, mvCL1,
+        refIdxL0, refIdxL1,
+        predFlagL0, predFlagL1,
+        subMvCnt]
+        = Derivation_process_for_motion_vector_components_and_reference_indices(
+            mbPartIdx,
+            subMbPartIdx,
+            has_sub_idx);
+
+    MvCnt += subMvCnt;
+
+    int logWDL = INT32_MIN, w0L = INT32_MIN, w1L = INT32_MIN, o0L = INT32_MIN, o1L = INT32_MIN;
+    int logWDCb = INT32_MIN, w0Cb = INT32_MIN, w1Cb = INT32_MIN, o0Cb = INT32_MIN, o1Cb = INT32_MIN;
+    int logWDCr = INT32_MIN, w0Cr = INT32_MIN, w1Cr = INT32_MIN, o0Cr = INT32_MIN, o1Cr = INT32_MIN;
+
+    // 8.4.3
+    if ((pps_->weighted_pred_flag() && slice_->is_P_or_SP())
+        || (pps_->weighted_bipred_idc() > 0 && slice_->is_B_slice())) {
+
+        // { { logWDL, w0L, w1L, o0L, o1L },
+        // { logWDCb, w0Cb, w1Cb, o0Cb, o1Cb },
+        // { logWDCr, w0Cr, w1Cr, o0Cr, o1Cr } }
+        //
+
+        auto&& [w1, w2, w3] = Derivation_process_for_prediction_weights(
+            refIdxL0, refIdxL1,
+            predFlagL0, predFlagL1);
+
+        logWDL = std::get<0>(w1);
+        w0L = std::get<1>(w1);
+        w1L = std::get<2>(w1);
+        o0L = std::get<3>(w1);
+        o1L = std::get<4>(w1);
+
+        logWDCb = std::get<0>(w2);
+        w0Cb = std::get<1>(w2);
+        w1Cb = std::get<2>(w2);
+        o0Cb = std::get<3>(w2);
+        o1Cb = std::get<4>(w2);
+
+        logWDCr = std::get<0>(w3);
+        w0Cr = std::get<1>(w3);
+        w1Cr = std::get<2>(w3);
+        o0Cr = std::get<3>(w3);
+        o1Cr = std::get<4>(w3);
+    }
+
+    // 8.4.2
+    auto&& [predPartL, predPartCb, predPartCr] = Decoding_process_for_Inter_prediction_samples(
+        mbPartIdx,
+        subMbPartIdx,
+        partWidth,
+        partHeight,
+        partWidthC,
+        partHeightC,
+        mvL0,
+        mvL1,
+        mvCL0,
+        mvCL1,
+        refIdxL0,
+        refIdxL1,
+        predFlagL0,
+        predFlagL1,
+        { { logWDL, w0L, w1L, o0L, o1L },
+            { logWDCb, w0Cb, w1Cb, o0Cb, o1Cb },
+            { logWDCr, w0Cr, w1Cr, o0Cr, o1Cr } });
+
+    return { predPartL, predPartCb, predPartCr,
+        mvL0, mvL1, mvCL0, mvCL1,
+        refIdxL0, refIdxL1,
+        predFlagL0, predFlagL1 };
+}
+
+// 8.4.1 Derivation process for motion vector components and reference indices
+//
+// mvL0 mvL1
+// mvCL0 mvCL1
+// refIdxL0 refIdxL1
+// predFlagL0 predFlagL1
+// subMvCnt
+//
+std::tuple<
+    std::array<int, 2>, std::array<int, 2>,
+    std::array<int, 2>, std::array<int, 2>,
+    int, int,
+    int, int,
+    int>
+MacroBlock::Derivation_process_for_motion_vector_components_and_reference_indices(
+    int mbPartIdx,
+    int subMbPartIdx,
+    bool has_sub_idx)
+{
+    assert(has_sub_idx == !mb_type_proxy_.no_subMbPartIdx());
+
+    std::array<int, 2> mvL0, mvL1;
+    std::array<int, 2> mvCL0, mvCL1;
+    int refIdxL0, refIdxL1;
+    int predFlagL0, predFlagL1;
+    int subMvCnt;
+
+    auto mb_type = mb_type_proxy_.mb_type();
+
+    if (mb_type == MbType::P_Skip) {
+        assert(mbPartIdx == 0 && subMbPartIdx == 0);
+
+        // 8.4.1.1
+        // mvL0, refIdxL0
+        auto&& tmp = Derivation_process_for_luma_motion_vectors_for_skipped_macroblocks_in_P_and_SP_slices();
+        mvL0 = std::get<0>(tmp);
+        refIdxL0 = std::get<1>(tmp);
+
+        predFlagL0 = 1;
+
+        mvL1 = { INT32_MIN, INT32_MIN };
+        refIdxL1 = INT32_MIN;
+        predFlagL1 = 0;
+
+        subMvCnt = 1;
+    } else if (mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16
+        || (mb_type == MbType::B_8x8
+            && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() == SubMbType::B_Direct_8x8)) {
+
+        // 8.4.1.2
+        //
+        // refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1
+        //
+        auto&& tmp = Derivation_process_for_luma_motion_vectors_for_B_Skip_B_Direct_16x16_and_B_Direct_8x8(
+            mbPartIdx,
+            subMbPartIdx);
+
+        refIdxL0 = std::get<0>(tmp);
+        refIdxL1 = std::get<1>(tmp);
+        mvL0 = std::get<2>(tmp);
+        mvL1 = std::get<3>(tmp);
+        subMvCnt = std::get<4>(tmp);
+        predFlagL0 = std::get<5>(tmp);
+        predFlagL1 = std::get<6>(tmp);
+    } else {
+        bool is_Pred_L0 = false,
+             is_Pred_L1 = false,
+             is_BiPred = false;
+
+        if (!has_sub_idx) {
+            if (mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) == MbPartPredMode::Pred_L0) {
+                is_Pred_L0 = true;
+            } else if (mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) == MbPartPredMode::Pred_L1) {
+                is_Pred_L1 = true;
+            } else if (mb_type_proxy_.MbPartPredModeByIdx(mbPartIdx) == MbPartPredMode::BiPred) {
+                is_BiPred = true;
+            } else
+                assert(false);
+        } else {
+            if (sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() == SubMbPredMode::Pred_L0) {
+                is_Pred_L0 = true;
+            } else if (sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() == SubMbPredMode::Pred_L1) {
+                is_Pred_L1 = true;
+            } else if (sub_mb_type_proxy_[mbPartIdx].SubMbPredMode() == SubMbPredMode::BiPred) {
+                is_BiPred = true;
+            } else
+                assert(false);
+        }
+
+        if (is_Pred_L0) {
+            refIdxL0 = ref_idx_l0_[mbPartIdx];
+            predFlagL0 = 1;
+            refIdxL1 = -1;
+            predFlagL1 = 0;
+
+            assert(refIdxL0 >= 0);
+        } else if (is_Pred_L1) {
+            refIdxL0 = -1;
+            predFlagL0 = 0;
+            refIdxL1 = ref_idx_l1_[mbPartIdx];
+            predFlagL1 = 1;
+
+            assert(refIdxL1 >= 0);
+        } else if (is_BiPred) {
+            refIdxL0 = ref_idx_l0_[mbPartIdx];
+            predFlagL0 = 1;
+            refIdxL1 = ref_idx_l1_[mbPartIdx];
+            predFlagL1 = 1;
+
+            assert(refIdxL0 >= 0 && refIdxL1 >= 0);
+        }
+
+        subMvCnt = predFlagL0 + predFlagL1;
+
+        SubMbType currSubMbType;
+        if (mb_type == MbType::B_8x8)
+            currSubMbType = sub_mb_type_proxy_[mbPartIdx].sub_mb_type();
+        else
+            currSubMbType = SubMbType::NA;
+
+        if (predFlagL0) {
+            // 8.4.1.3
+            auto mvpL0 = Derivation_process_for_luma_motion_vector_prediction_single(
+                mbPartIdx,
+                subMbPartIdx,
+                refIdxL0,
+                currSubMbType,
+                0 /* listSuffixFlag */);
+
+            mvL0[0] = mvpL0[0] + mvd_l0_[mbPartIdx][subMbPartIdx][0];
+            mvL0[1] = mvpL0[1] + mvd_l0_[mbPartIdx][subMbPartIdx][1];
+        }
+
+        if (predFlagL1) {
+            // 8.4.1.3
+            auto mvpL1 = Derivation_process_for_luma_motion_vector_prediction_single(
+                mbPartIdx,
+                subMbPartIdx,
+                refIdxL1,
+                currSubMbType,
+                1 /* listSuffixFlag */);
+
+            mvL1[0] = mvpL1[0] + mvd_l1_[mbPartIdx][subMbPartIdx][0];
+            mvL1[1] = mvpL1[1] + mvd_l1_[mbPartIdx][subMbPartIdx][1];
+        }
+    }
+
+    auto ChromaArrayType = sps_->ChromaArrayType();
+    if (ChromaArrayType != 0) {
+        if (predFlagL0) {
+
+            mvCL0 = Derivation_process_for_chroma_motion_vectors(
+                mvL0,
+                refIdxL0,
+                0 /* listSuffixFlag */);
+        }
+        if (predFlagL1) {
+
+            mvCL1 = Derivation_process_for_chroma_motion_vectors(
+                mvL1,
+                refIdxL1,
+                1 /* listSuffixFlag */);
+        }
+    }
+
+    return { mvL0, mvL1, mvCL0, mvCL1, refIdxL0, refIdxL1, predFlagL0, predFlagL1, subMvCnt };
+}
+
+// 8.4.1.1 Derivation process for luma motion vectors for skipped macroblocks in P and SP slices
+//
+// mvL0, refIdxL0
+//
+std::tuple<std::array<int, 2>, int>
+MacroBlock::Derivation_process_for_luma_motion_vectors_for_skipped_macroblocks_in_P_and_SP_slices()
+{
+    auto mb_type = mb_type_proxy_.mb_type();
+    assert(mb_type == MbType::P_Skip);
+
+    int refIdxL0;
+    std::array<int, 2> mvL0;
+
+    refIdxL0 = 0;
+
+    // 8.4.1.3.2
+
+    // mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A,
+    // mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B,
+    // mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C,
+
+    auto&& [A_0, B_0, C_0] = Derivation_process_for_motion_data_of_neighbouring_partitions(
+        0 /* mbPartIdx */,
+        0 /* subMbPartIdx */,
+        SubMbType::NA /* currSubMbType */,
+        0 /* listSuffixFlag */);
+
+    int mbAddrA = std::get<0>(A_0);
+    auto&& [mvL0A, refIdxL0A] = std::get<3>(A_0);
+
+    int mbAddrB = std::get<0>(B_0);
+    auto&& [mvL0B, refIdxL0B] = std::get<3>(B_0);
+
+    if (mbAddrA == INT32_MIN
+        || mbAddrB == INT32_MIN
+        || (refIdxL0A == 0 && mvL0A[0] == 0 && mvL0A[1] == 0)
+        || (refIdxL0B == 0 && mvL0B[0] == 0 && mvL0B[1] == 0)) {
+        mvL0[0] = 0;
+        mvL0[1] = 0;
+    } else {
+        // clause 8.4.1.3
+        //
+        mvL0 = Derivation_process_for_luma_motion_vector_prediction_single(
+            0 /* mbPartIdx */,
+            0 /* subMbPartIdx */,
+            refIdxL0,
+            SubMbType::NA /* currSubMbType */,
+            0 /* listSuffixFlag */);
+    }
+
+    return { mvL0, refIdxL0 };
+}
+
+// 8.4.1.2 Derivation process for luma motion vectors for B_Skip, B_Direct_16x16, and B_Direct_8x8
+//
+// refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1
+//
+std::tuple<int, int,
+    std::array<int, 2>, std::array<int, 2>,
+    int, int, int>
+MacroBlock::Derivation_process_for_luma_motion_vectors_for_B_Skip_B_Direct_16x16_and_B_Direct_8x8(
+    int mbPartIdx,
+    int subMbPartIdx)
+{
+    auto mb_type = mb_type_proxy_.mb_type();
+    assert(mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16
+        || (mb_type == MbType::B_8x8 && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() == SubMbType::B_Direct_8x8));
+
+    int refIdxL0, refIdxL1;
+    std::array<int, 2> mvL0, mvL1;
+    int subMvCnt;
+    int predFlagL0, predFlagL1;
+
+    bool direct_spatial_mv_pred_flag = slice_->direct_spatial_mv_pred_flag();
+
+    if (direct_spatial_mv_pred_flag) {
+
+        // refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1
+        //
+        // clause 8.4.1.2.2
+        auto&& tmp = Derivation_process_for_spatial_direct_luma_motion_vector_and_reference_index_prediction_mode(
+            mbPartIdx,
+            subMbPartIdx);
+
+        refIdxL0 = std::get<0>(tmp);
+        refIdxL1 = std::get<1>(tmp);
+        mvL0 = std::get<2>(tmp);
+        mvL1 = std::get<3>(tmp);
+        subMvCnt = std::get<4>(tmp);
+        predFlagL0 = std::get<5>(tmp);
+        predFlagL1 = std::get<6>(tmp);
+    } else {
+
+        // mvL0, mvL1, refIdxL0, refIdxL1, predFlagL0, predFlagL1
+        //
+        // clause 8.4.1.2.3
+        auto&& tmp = Derivation_process_for_temporal_direct_luma_motion_vector_and_reference_index_prediction_mode(
+            mbPartIdx,
+            subMbPartIdx);
+
+        mvL0 = std::get<0>(tmp);
+        mvL1 = std::get<1>(tmp);
+        refIdxL0 = std::get<2>(tmp);
+        refIdxL1 = std::get<3>(tmp);
+        predFlagL0 = std::get<4>(tmp);
+        predFlagL1 = std::get<5>(tmp);
+
+        // TODO: Why all 8x8 block share the same Mv?
+        if (subMbPartIdx == 0)
+            subMvCnt = 2;
+        else
+            subMvCnt = 0;
+    }
+
+    return { refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1 };
+}
+
+// Done
+//
+// 8.4.1.2.1 Derivation process for the co-located 4x4 sub-macroblock partitions
+//
+// colPic, mbAddrCol, mvCol, refIdxCol, vertMvScale, refPicCol
+std::tuple<Slice*, int, std::array<int, 2>, int, int, Slice*>
+MacroBlock::Derivation_process_for_the_co_located_4x4_sub_macroblock_partitions(
+    int mbPartIdx,
+    int subMbPartIdx)
+{
+    Slice* colPic;
+    int mbAddrCol;
+    std::array<int, 2> mvCol;
+    int refIdxCol;
+    int vertMvScale;
+
+    bool direct_8x8_inference_flag = sps_->direct_8x8_inference_flag();
+
+    // now Only consider frame mode
+    assert(!slice_->field_pic_flag());
+    colPic = slice_->get_RefPicList1(0);
+    assert(colPic);
+
+    auto PicCodingStruct = [](Slice* pic) {
+        if (pic->field_pic_flag()) {
+            return FLD;
+        } else {
+            if (pic->mb_adaptive_frame_field_flag())
+                return AFRM;
+            else
+                return FRM;
+        }
+    };
+
+    int luma4x4BlkIdx;
+    if (!direct_8x8_inference_flag)
+        luma4x4BlkIdx = 4 * mbPartIdx + subMbPartIdx;
+    else
+        luma4x4BlkIdx = 5 * mbPartIdx;
+
+    auto [xCol, yCol] = slice_->Inverse_4x4_luma_block_scanning_process(luma4x4BlkIdx);
+
+    auto PicCodingStruct_CurrPic = PicCodingStruct(slice_);
+    auto PicCodingStruct_colPic = PicCodingStruct(colPic);
+
+    // only consider frame mode
+    assert(PicCodingStruct_CurrPic == FRM && PicCodingStruct_colPic == FRM);
+
+    mbAddrCol = CurrMbAddr_;
+    int yM = yCol;
+    vertMvScale = One_To_One;
+
+    auto& mbCol = colPic->get_mb_by_addr(mbAddrCol);
+
+    auto [mbPartIdxCol, subMbPartIdxCol] = mbCol.Derivation_process_for_macroblock_and_sub_macroblock_partition_indices(xCol, yM);
+
+    int predFlagL0Col, predFlagL1Col;
+
+    Slice* refPicCol = nullptr;
+
+    if (mbCol.is_intra_pred()) {
+        mvCol[0] = 0;
+        mvCol[1] = 0;
+        refIdxCol = -1;
+    } else {
+        predFlagL0Col = mbCol.get_PredFlagL0(mbPartIdxCol);
+        predFlagL1Col = mbCol.get_PredFlagL1(mbPartIdxCol);
+        if (predFlagL0Col) {
+            mvCol[0] = mbCol.get_MvL0(mbPartIdxCol, subMbPartIdxCol)[0];
+            mvCol[1] = mbCol.get_MvL0(mbPartIdxCol, subMbPartIdxCol)[1];
+            refIdxCol = mbCol.get_RefIdxL0(mbPartIdxCol);
+
+            // here the refIdxCol is the ref idx for colPic
+            refPicCol = colPic->get_RefPicList0(refIdxCol);
+        } else {
+            assert(predFlagL1Col);
+
+            mvCol[0] = mbCol.get_MvL1(mbPartIdxCol, subMbPartIdxCol)[0];
+            mvCol[1] = mbCol.get_MvL1(mbPartIdxCol, subMbPartIdxCol)[1];
+            refIdxCol = mbCol.get_RefIdxL1(mbPartIdxCol);
+
+            // here the refIdxCol is the ref idx for colPic
+            refPicCol = colPic->get_RefPicList1(refIdxCol);
+        }
+    }
+
+    return { colPic, mbAddrCol, mvCol, refIdxCol, vertMvScale, refPicCol };
+}
+
+// 8.4.1.2.2 Derivation process for spatial direct luma motion vector and reference index prediction mode
+//
+// refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1
+std::tuple<
+    int, int,
+    std::array<int, 2>, std::array<int, 2>,
+    int, int, int>
+MacroBlock::Derivation_process_for_spatial_direct_luma_motion_vector_and_reference_index_prediction_mode(
+    int mbPartIdx,
+    int subMbPartIdx)
+{
+    auto direct_spatial_mv_pred_flag = slice_->direct_spatial_mv_pred_flag();
+    assert(direct_spatial_mv_pred_flag);
+
+    auto mb_type = mb_type_proxy_.mb_type();
+    assert(mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16
+        || (mb_type == MbType::B_8x8
+            && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() == SubMbType::B_Direct_8x8));
+
+    int refIdxL0, refIdxL1;
+    std::array<int, 2> mvL0, mvL1;
+    int subMvCnt;
+    int predFlagL0, predFlagL1;
+
+    // TODO: shall we set the inferred SubMbType for B_Skip and B_Direct_16x16?
+    SubMbType currSubMbType = SubMbType::NA;
+    if (mb_type == MbType::B_8x8)
+        currSubMbType = sub_mb_type_proxy_[mbPartIdx].sub_mb_type();
+
+    // when direct_spatial_mv_pred_flag is true
+    // the mbPartIdx and subMbPartIdx are set to 0
+    // and the predPartWidthC is 16
+
+    // mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A,
+    // mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B,
+    // mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C,
+
+    // clause 8.4.1.3.2
+    auto&& [A0, B0, C0] = Derivation_process_for_motion_data_of_neighbouring_partitions(
+        0 /* mbPartIdx */,
+        0 /* subMbPartIdx */,
+        currSubMbType,
+        0 /* listSuffixFlag */);
+
+    auto&& [mvL0A, refIdxL0A] = std::get<3>(A0);
+    auto&& [mvL0B, refIdxL0B] = std::get<3>(B0);
+    auto&& [mvL0C, refIdxL0C] = std::get<3>(C0);
+
+    // clause 8.4.1.3.2
+    auto&& [A1, B1, C1] = Derivation_process_for_motion_data_of_neighbouring_partitions(
+        0 /* mbPartIdx */,
+        0 /* subMbPartIdx */,
+        currSubMbType,
+        1 /* listSuffixFlag */);
+
+    auto&& [mvL1A, refIdxL1A] = std::get<3>(A1);
+    auto&& [mvL1B, refIdxL1B] = std::get<3>(B1);
+    auto&& [mvL1C, refIdxL1C] = std::get<3>(C1);
+
+    // The motion vectors mvL0N, mvL1N and the reference indices refIdxL0N,
+    // refIdxL1N are identical for all 4x4 sub-macroblock partitions of a macroblock.
+
+    auto MinPositive = [](int x, int y) {
+        if (x >= 0 && y >= 0)
+            return std::min(x, y);
+        else
+            return std::max(x, y);
+    };
+
+    refIdxL0 = MinPositive(refIdxL0A, MinPositive(refIdxL0B, refIdxL0C));
+    refIdxL1 = MinPositive(refIdxL1A, MinPositive(refIdxL1B, refIdxL1C));
+    int directZeroPredictionFlag = 0;
+
+    if (refIdxL0 < 0 && refIdxL1 < 0) {
+
+        refIdxL0 = 0;
+        refIdxL1 = 0;
+        directZeroPredictionFlag = 1;
+    }
+
+    // clause 8.4.1.2.1
+    // colPic, mbAddrCol, mvCol, refIdxCol, vertMvScale, refPicCol
+    auto&& [colPic,
+        mbAddrCol,
+        mvCol,
+        refIdxCol,
+        vertMvScale,
+        refPicCol]
+        = Derivation_process_for_the_co_located_4x4_sub_macroblock_partitions(
+            mbPartIdx,
+            subMbPartIdx);
+
+    int colZeroFlag;
+    if (slice_->get_RefPicList1(0)->at_least_one_short_term_ref()
+        && refIdxCol == 0
+        && (mvCol[0] >= -1 && mvCol[0] <= 1
+            && mvCol[1] >= -1 && mvCol[1] <= 1))
+
+        colZeroFlag = 1;
+    else
+        colZeroFlag = 0;
+
+    auto func = [directZeroPredictionFlag, colZeroFlag, currSubMbType, this](
+                    int refIdxLX,
+                    int listSuffixFlag) -> std::array<int, 2> {
+        std::array<int, 2> mvLX;
+
+        if (directZeroPredictionFlag == 1
+            || refIdxLX < 0
+            || (refIdxLX == 0 && colZeroFlag == 1)) {
+            mvLX[0] = 0;
+            mvLX[1] = 0;
+        } else
+            mvLX = Derivation_process_for_luma_motion_vector_prediction_single(
+                0 /* mbPartIdx */,
+                0 /* subMbPartIdx */,
+                refIdxLX,
+                currSubMbType,
+                listSuffixFlag);
+
+        return mvLX;
+    };
+
+    mvL0 = func(refIdxL0, 0);
+    mvL1 = func(refIdxL1, 1);
+
+    if (refIdxL0 >= 0 && refIdxL1 >= 0) {
+        predFlagL0 = 1;
+        predFlagL1 = 1;
+    } else if (refIdxL0 >= 0 && refIdxL1 < 0) {
+        predFlagL0 = 1;
+        predFlagL1 = 0;
+    } else if (refIdxL0 < 0 && refIdxL1 >= 0) {
+        predFlagL0 = 0;
+        predFlagL1 = 1;
+    } else
+        assert(false);
+
+    if (subMbPartIdx != 0)
+        subMvCnt = 0;
+    else
+        subMvCnt = predFlagL0 + predFlagL1;
+
+    return { refIdxL0, refIdxL1, mvL0, mvL1, subMvCnt, predFlagL0, predFlagL1 };
+}
+
+// 8.4.1.2.3 Derivation process for temporal direct luma motion vector and reference index prediction mode
+//
+// mvL0, mvL1, refIdxL0, refIdxL1, predFlagL0, predFlagL1
+std::tuple<
+    std::array<int, 2>, std::array<int, 2>,
+    int, int,
+    int, int>
+MacroBlock::Derivation_process_for_temporal_direct_luma_motion_vector_and_reference_index_prediction_mode(
+    int mbPartIdx,
+    int subMbPartIdx)
+{
+    auto direct_spatial_mv_pred_flag = slice_->direct_spatial_mv_pred_flag();
+    assert(!direct_spatial_mv_pred_flag);
+
+    auto mb_type = mb_type_proxy_.mb_type();
+    assert(mb_type == MbType::B_Skip
+        || mb_type == MbType::B_Direct_16x16
+        || (mb_type == MbType::B_8x8
+            && sub_mb_type_proxy_[mbPartIdx].sub_mb_type() == SubMbType::B_Direct_8x8));
+
+    std::array<int, 2> mvL0, mvL1;
+    int refIdxL0, refIdxL1;
+    int predFlagL0, predFlagL1;
+
+    // clause 8.4.1.2.1
+    // colPic, mbAddrCol, mvCol, refIdxCol, vertMvScale, refPicCol
+    auto&& [colPic,
+        mbAddrCol,
+        mvCol,
+        refIdxCol,
+        vertMvScale,
+        refPicCol]
+        = Derivation_process_for_the_co_located_4x4_sub_macroblock_partitions(
+            mbPartIdx,
+            subMbPartIdx);
+
+    assert(vertMvScale == One_To_One);
+
+    auto MapColToList0 = [vertMvScale, this](Slice* refPicCol) {
+        if (vertMvScale == One_To_One) {
+            // If field_pic_flag is equal to 0 and the current
+            // macroblock is a field macroblock
+            // TODO
+
+            // Otherwise
+            // field_pic_flag is equal to 1 or the current macroblock is a frame macroblock
+
+            return slice_->find_lowest_Slice_idx_in_RefPicList0(refPicCol);
+
+        } else {
+            // TODO
+        }
+        return INT32_MIN;
+    };
+
+    refIdxL0 = ((refIdxCol < 0) ? 0 : MapColToList0(refPicCol));
+    refIdxL1 = 0;
+
+    // only consider frame mode, so mvCol[ 1 ] remains unchanged
+
+    Slice* currPicOrField = slice_;
+    Slice* pic1 = slice_->get_RefPicList1(0 /* refIdxL1 */);
+    Slice* pic0 = slice_->get_RefPicList0(refIdxL0);
+
+    if (pic0->at_least_one_long_term_ref()
+        || DiffPicOrderCnt(pic1, pic0) == 0) {
+        mvL0 = mvCol;
+        mvL1 = { 0, 0 };
+    } else {
+        int tb = Clip3(-128, 127, DiffPicOrderCnt(currPicOrField, pic0));
+        int td = Clip3(-128, 127, DiffPicOrderCnt(pic1, pic0));
+        int tx = (16384 + std::abs(td / 2)) / td;
+        int DistScaleFactor = Clip3(-1024, 1023, (tb * tx + 32) >> 6);
+
+        mvL0[0] = (DistScaleFactor * mvCol[0] + 128) >> 8;
+        mvL0[1] = (DistScaleFactor * mvCol[1] + 128) >> 8;
+
+        mvL1[0] = mvL0[0] - mvCol[0];
+        mvL1[1] = mvL0[1] - mvCol[1];
+    }
+
+    predFlagL0 = 1;
+    predFlagL1 = 1;
+
+    return { mvL0, mvL1, refIdxL0, refIdxL1, predFlagL0, predFlagL1 };
+}
+
+// Done
+//
+// 8.4.1.3 Derivation process for luma motion vector prediction
+//
+std::tuple<
+    std::array<int, 2>,
+    std::array<int, 2>>
+MacroBlock::Derivation_process_for_luma_motion_vector_prediction(
+    int mbPartIdx,
+    int subMbPartIdx,
+    int refIdxL0,
+    int refIdxL1,
+    SubMbType currSubMbType)
+{
+    std::array<int, 2> mvpL0 = Derivation_process_for_luma_motion_vector_prediction_single(
+        mbPartIdx,
+        subMbPartIdx,
+        refIdxL0,
+        currSubMbType,
+        0);
+
+    std::array<int, 2> mvpL1 = Derivation_process_for_luma_motion_vector_prediction_single(
+        mbPartIdx,
+        subMbPartIdx,
+        refIdxL1,
+        currSubMbType,
+        1);
+
+    return { mvpL0, mvpL1 };
+}
+
+// Done
+//
+std::array<int, 2>
+MacroBlock::Derivation_process_for_luma_motion_vector_prediction_single(
+    int mbPartIdx,
+    int subMbPartIdx,
+    int refIdxLX,
+    SubMbType currSubMbType,
+    int listSuffixFlag)
+{
+    assert(refIdxLX >= 0);
+
+    std::array<int, 2> mvpLX;
+
+    // mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A,
+    // mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B,
+    // mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C,
+    auto t = Derivation_process_for_motion_data_of_neighbouring_partitions(
+        mbPartIdx,
+        subMbPartIdx,
+        currSubMbType,
+        listSuffixFlag);
+
+    auto&& [mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A] = std::get<0>(t);
+    auto&& [mvLXA, refIdxLXA] = mv_refIdx_A;
+
+    auto&& [mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B] = std::get<1>(t);
+    auto&& [mvLXB, refIdxLXB] = mv_refIdx_B;
+
+    auto&& [mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C] = std::get<2>(t);
+    auto&& [mvLXC, refIdxLXC] = mv_refIdx_C;
+
+    if (mb_type_proxy_.MbPartWidth() == 16
+        && mb_type_proxy_.MbPartHeight() == 8
+        && mbPartIdx == 0
+        && refIdxLXB == refIdxLX) {
+
+        mvpLX = mvLXB;
+
+    } else if (mb_type_proxy_.MbPartWidth() == 16
+        && mb_type_proxy_.MbPartHeight() == 8
+        && mbPartIdx == 1
+        && refIdxLXA == refIdxLX) {
+
+        mvpLX = mvLXA;
+
+    } else if (mb_type_proxy_.MbPartWidth() == 8
+        && mb_type_proxy_.MbPartHeight() == 16
+        && mbPartIdx == 0
+        && refIdxLXA == refIdxLX) {
+
+        mvpLX = mvLXA;
+
+    } else if (mb_type_proxy_.MbPartWidth() == 8
+        && mb_type_proxy_.MbPartHeight() == 16
+        && mbPartIdx == 1
+        && refIdxLXC == refIdxLX) {
+
+        mvpLX = mvLXC;
+
+    } else {
+
+        mvpLX = Derivation_process_for_median_luma_motion_vector_prediction(
+            mbAddrA,
+            mbPartIdxA,
+            subMbPartIdxA,
+            mvLXA,
+            refIdxLXA,
+
+            mbAddrB,
+            mbPartIdxB,
+            subMbPartIdxB,
+            mvLXB,
+            refIdxLXB,
+
+            mbAddrC,
+            mbPartIdxC,
+            subMbPartIdxC,
+            mvLXC,
+            refIdxLXC,
+
+            refIdxLX);
+    }
+
+    return mvpLX;
+}
+
+// Done
+//
+// 8.4.1.3.1 Derivation process for median luma motion vector prediction
+std::array<int, 2>
+MacroBlock::Derivation_process_for_median_luma_motion_vector_prediction(
+    int mbAddrA,
+    int mbPartIdxA,
+    int subMbPartIdxA,
+    std::array<int, 2> mvLXA,
+    int refIdxLXA,
+
+    int mbAddrB,
+    int mbPartIdxB,
+    int subMbPartIdxB,
+    std::array<int, 2> mvLXB,
+    int refIdxLXB,
+
+    int mbAddrC,
+    int mbPartIdxC,
+    int subMbPartIdxC,
+    std::array<int, 2> mvLXC,
+    int refIdxLXC,
+
+    int refIdxLX)
+{
+
+    std::array<int, 2> mvpLX;
+
+    bool A_available = mbAddrA != INT32_MIN
+        && mbPartIdxA != INT32_MIN
+        && subMbPartIdxA != INT32_MIN;
+
+    bool B_available = mbAddrB != INT32_MIN
+        && mbPartIdxB != INT32_MIN
+        && subMbPartIdxB != INT32_MIN;
+
+    bool C_available = mbAddrC != INT32_MIN
+        && mbPartIdxC != INT32_MIN
+        && subMbPartIdxC != INT32_MIN;
+
+    if (!B_available && !C_available && A_available) {
+        mvLXB = mvLXA;
+        mvLXC = mvLXA;
+        refIdxLXB = refIdxLXA;
+        refIdxLXC = refIdxLXA;
+    }
+
+    bool A_idx_equal_to_cur = (refIdxLXA == refIdxLX);
+    bool B_idx_equal_to_cur = (refIdxLXB == refIdxLX);
+    bool C_idx_equal_to_cur = (refIdxLXC == refIdxLX);
+
+    if (A_idx_equal_to_cur && !B_idx_equal_to_cur && !C_idx_equal_to_cur)
+        mvpLX = mvLXA;
+
+    else if (!A_idx_equal_to_cur && B_idx_equal_to_cur && !C_idx_equal_to_cur)
+        mvpLX = mvLXB;
+
+    else if (!A_idx_equal_to_cur && !B_idx_equal_to_cur && C_idx_equal_to_cur)
+        mvpLX = mvLXC;
+
+    else {
+        mvpLX[0] = Median(mvLXA[0], mvLXB[0], mvLXC[0]);
+        mvpLX[1] = Median(mvLXA[1], mvLXB[1], mvLXC[1]);
+    }
+
+    return mvpLX;
+}
+
+// Done
+//
+// 8.4.1.3.2 Derivation process for motion data of neighbouring partitions
+//
+// mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A,
+// mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B,
+// mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C,
+std::tuple<
+    std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>,
+    std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>,
+    std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>>
+MacroBlock::Derivation_process_for_motion_data_of_neighbouring_partitions(
+    int mbPartIdx,
+    int subMbPartIdx,
+    SubMbType currSubMbType,
+    int listSuffixFlag)
+{
+    // debug
+    int kl = 0;
+    kl++;
+
+    auto&& [A, B, C, D] = Derivation_process_for_neighbouring_partitions(
+        mbPartIdx,
+        subMbPartIdx,
+        currSubMbType);
+
+    auto mbAddrA = std::get<0>(A);
+    auto mbPartIdxA = std::get<1>(A);
+    auto subMbPartIdxA = std::get<2>(A);
+
+    auto mbAddrB = std::get<0>(B);
+    auto mbPartIdxB = std::get<1>(B);
+    auto subMbPartIdxB = std::get<2>(B);
+
+    auto mbAddrC = std::get<0>(C);
+    auto mbPartIdxC = std::get<1>(C);
+    auto subMbPartIdxC = std::get<2>(C);
+
+    auto mbAddrD = std::get<0>(D);
+    auto mbPartIdxD = std::get<1>(D);
+    auto subMbPartIdxD = std::get<2>(D);
+
+    if (mbAddrC == INT32_MIN || mbPartIdxC == INT32_MIN || subMbPartIdxC == INT32_MIN) {
+
+        mbAddrC = mbAddrD;
+        mbPartIdxC = mbPartIdxD;
+        subMbPartIdxC = subMbPartIdxD;
+    }
+
+    std::array<int, 2> mvLXA, mvLXB, mvLXC;
+    int refIdxLXA, refIdxLXB, refIdxLXC;
+
+    auto func = [listSuffixFlag, this](int mbAddrN,
+                    int mbPartIdxN,
+                    int subMbPartIdxN)
+        -> std::tuple<std::array<int, 2>, int> {
+        if (mbAddrN == INT32_MIN || mbPartIdxN == INT32_MIN || subMbPartIdxN == INT32_MIN)
+            return { std::array<int, 2>(), -1 };
+
+        if (slice_->get_mb_by_addr(mbAddrN).is_intra_pred())
+            return { std::array<int, 2>(), -1 };
+
+        // each partition share the same predFlag
+        if (slice_->get_mb_by_addr(mbAddrN).get_predFlag(listSuffixFlag, mbPartIdxN) == 0)
+            return { std::array<int, 2>(), -1 };
+
+        std::array<int, 2> mvLXN;
+        int refIdxLXN;
+
+        refIdxLXN = slice_->get_mb_by_addr(mbAddrN).get_RefIdx(listSuffixFlag, mbPartIdxN);
+        mvLXN[0] = slice_->get_mb_by_addr(mbAddrN).get_Mv(listSuffixFlag, mbPartIdxN, subMbPartIdxN)[0];
+        mvLXN[1] = slice_->get_mb_by_addr(mbAddrN).get_Mv(listSuffixFlag, mbPartIdxN, subMbPartIdxN)[1];
+
+        // If the current macroblock is a field macroblock
+        // and the macroblock mbAddrN is a frame macroblock
+        //
+        // TODO
+
+        // if the current macroblock is a frame macroblock and
+        // the macroblock mbAddrN is a field macroblock
+        //
+        // TODO
+
+        return { mvLXN, refIdxLXN };
+    };
+
+    auto mv_refIdx_A = func(mbAddrA, mbPartIdxA, subMbPartIdxA);
+    auto mv_refIdx_B = func(mbAddrB, mbPartIdxB, subMbPartIdxB);
+    auto mv_refIdx_C = func(mbAddrC, mbPartIdxC, subMbPartIdxC);
+
+    return { { mbAddrA, mbPartIdxA, subMbPartIdxA, mv_refIdx_A },
+        { mbAddrB, mbPartIdxB, subMbPartIdxB, mv_refIdx_B },
+        { mbAddrC, mbPartIdxC, subMbPartIdxC, mv_refIdx_C } };
+}
+
+// Done
+//
+// 8.4.1.4 Derivation process for chroma motion vectors
+//
+std::array<int, 2>
+MacroBlock::Derivation_process_for_chroma_motion_vectors(
+    std::array<int, 2> mvLX,
+    int refIdxLX,
+    int listSuffixFlag /* currently unused */)
+{
+    assert(sps_->ChromaArrayType() != 0);
+
+    std::array<int, 2> mvCLX;
+
+    if (sps_->ChromaArrayType() != 1 || is_frame_macroblock()) {
+        mvCLX[0] = mvLX[0];
+        mvCLX[1] = mvLX[1];
+    } else {
+        assert(false);
+    }
+    return mvCLX;
+}
+
+int MacroBlock::DiffPicOrderCnt(Slice* a, Slice* b)
+{
+    return a->PicOrderCnt() - b->PicOrderCnt();
+}
+
+// Done
+//
+// 8.4.3 Derivation process for prediction weights
+//
+// { { logWDL, w0L, w1L, o0L, o1L },
+// { logWDCb, w0Cb, w1Cb, o0Cb, o1Cb },
+// { logWDCr, w0Cr, w1Cr, o0Cr, o1Cr } }
+//
+std::tuple<
+    std::tuple<int, int, int, int, int>,
+    std::tuple<int, int, int, int, int>,
+    std::tuple<int, int, int, int, int>>
+MacroBlock::Derivation_process_for_prediction_weights(
+    int refIdxL0, int refIdxL1,
+    int predFlagL0, int predFlagL1)
+{
+    int implicitModeFlag, explicitModeFlag;
+
+    if (pps_->weighted_bipred_idc() == 2
+        && slice_->is_B_slice()
+        && predFlagL0
+        && predFlagL1) {
+
+        implicitModeFlag = 1;
+        explicitModeFlag = 0;
+    } else if (pps_->weighted_bipred_idc() == 1
+        && slice_->is_B_slice()
+        && ((predFlagL0 + predFlagL1 == 1)
+            || (predFlagL0 + predFlagL1 == 2))) {
+
+        implicitModeFlag = 0;
+        explicitModeFlag = 1;
+    } else if (pps_->weighted_pred_flag()
+        && slice_->is_P_or_SP()
+        && predFlagL0) {
+
+        implicitModeFlag = 0;
+        explicitModeFlag = 1;
+    } else {
+        implicitModeFlag = 0;
+        explicitModeFlag = 0;
+    }
+
+    auto func = [implicitModeFlag,
+                    explicitModeFlag,
+                    refIdxL0,
+                    refIdxL1,
+                    predFlagL0,
+                    predFlagL1,
+                    this](bool is_luma, int iCbCr) -> std::tuple<int, int, int, int, int> {
+        int logWDC;
+        int o0C;
+        int o1C;
+        int w0C;
+        int w1C;
+
+        if (implicitModeFlag) {
+            logWDC = 5;
+            o0C = 0;
+            o1C = 0;
+
+            // only consider frame mode
+            Slice* currPicOrField = slice_;
+            Slice* pic1 = slice_->get_RefPicList1(refIdxL1);
+            Slice* pic0 = slice_->get_RefPicList0(refIdxL0);
+
+            int tb = Clip3(-128, 127, DiffPicOrderCnt(currPicOrField, pic0));
+            int td = Clip3(-128, 127, DiffPicOrderCnt(pic1, pic0));
+            // be care when td = 0
+            int tx = (td != 0) ? ((16384 + std::abs(td / 2)) / td) : INT32_MIN;
+            int DistScaleFactor = Clip3(-1024, 1023, (tb * tx + 32) >> 6);
+
+            if (DiffPicOrderCnt(pic1, pic0) == 0
+                || pic1->at_least_one_long_term_ref()
+                || pic0->at_least_one_long_term_ref()
+                || (DistScaleFactor >> 2) < -64
+                || (DistScaleFactor >> 2) > 128) {
+
+                w0C = 32;
+                w1C = 32;
+            } else {
+                w0C = 64 - (DistScaleFactor >> 2);
+                w1C = DistScaleFactor >> 2;
+            }
+
+        } else if (explicitModeFlag) {
+            // only frame mode
+            int refIdxL0WP = refIdxL0;
+            int refIdxL1WP = refIdxL1;
+            if (is_luma) {
+                // TODO access control
+                logWDC = slice_->luma_log2_weight_denom_;
+
+                if (predFlagL0)
+                    w0C = slice_->luma_weight_l0_[refIdxL0WP];
+                if (predFlagL1)
+                    w1C = slice_->luma_weight_l1_[refIdxL1WP];
+                if (predFlagL0)
+                    o0C = slice_->luma_offset_l0_[refIdxL0WP] * (1 << (sps_->BitDepthY() - 8));
+                if (predFlagL1)
+                    o1C = slice_->luma_offset_l1_[refIdxL1WP] * (1 << (sps_->BitDepthY() - 8));
+            } else {
+                // TODO access control
+                logWDC = slice_->chroma_log2_weight_denom_;
+
+                auto& chroma_weight_l0 = iCbCr == 0 ? slice_->chroma_weight_l0_Cb_ : slice_->chroma_weight_l0_Cr_;
+                auto& chroma_weight_l1 = iCbCr == 0 ? slice_->chroma_weight_l1_Cb_ : slice_->chroma_weight_l1_Cr_;
+                auto& chroma_offset_l0 = iCbCr == 0 ? slice_->chroma_offset_l0_Cb_ : slice_->chroma_offset_l0_Cr_;
+                auto& chroma_offset_l1 = iCbCr == 0 ? slice_->chroma_offset_l1_Cb_ : slice_->chroma_offset_l1_Cr_;
+
+                if (predFlagL0)
+                    w0C = chroma_weight_l0[refIdxL0WP];
+                if (predFlagL1)
+                    w1C = chroma_weight_l1[refIdxL1WP];
+                if (predFlagL0)
+                    o0C = chroma_offset_l0[refIdxL0WP] * (1 << (sps_->BitDepthC() - 8));
+                if (predFlagL1)
+                    o1C = chroma_offset_l1[refIdxL1WP] * (1 << (sps_->BitDepthC() - 8));
+            }
+        } else {
+            // the following variables are unused
+            logWDC = INT32_MIN;
+            o0C = INT32_MIN;
+            o1C = INT32_MIN;
+            w0C = INT32_MIN;
+            w1C = INT32_MIN;
+        }
+        return { logWDC, o0C, o1C, w0C, w1C };
+    };
+
+    auto [logWDL, o0L, o1L, w0L, w1L] = func(true /* is_luma */, -1 /* iCbCr */);
+    auto [logWDCb, o0Cb, o1Cb, w0Cb, w1Cb] = func(false /* is_luma */, 0 /* iCbCr */);
+    auto [logWDCr, o0Cr, o1Cr, w0Cr, w1Cr] = func(false /* is_luma */, 1 /* iCbCr */);
+
+    if (explicitModeFlag && predFlagL0 && predFlagL1) {
+        assert((w0L + w1L >= -128) && (w0L + w1L <= ((logWDL == 7) ? 127 : 128)));
+        assert((w0Cb + w1Cb >= -128) && (w0Cb + w1Cb <= ((logWDCb == 7) ? 127 : 128)));
+        assert((w0Cr + w1Cr >= -128) && (w0Cr + w1Cr <= ((logWDCr == 7) ? 127 : 128)));
+    }
+
+    return { { logWDL, w0L, w1L, o0L, o1L },
+        { logWDCb, w0Cb, w1Cb, o0Cb, o1Cb },
+        { logWDCr, w0Cr, w1Cr, o0Cr, o1Cr } };
+}
+
+// Done
+//
+// 8.4.2 Decoding process for Inter prediction samples
+std::tuple<
+    std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>>
+MacroBlock::Decoding_process_for_Inter_prediction_samples(
+    int mbPartIdx,
+    int subMbPartIdx,
+    int partWidth,
+    int partHeight,
+    int partWidthC,
+    int partHeightC,
+    std::array<int, 2> mvL0,
+    std::array<int, 2> mvL1,
+    std::array<int, 2> mvCL0,
+    std::array<int, 2> mvCL1,
+    int refIdxL0,
+    int refIdxL1,
+    int predFlagL0,
+    int predFlagL1,
+    std::tuple<
+        std::tuple<int, int, int, int, int>,
+        std::tuple<int, int, int, int, int>,
+        std::tuple<int, int, int, int, int>>
+        weight_info)
+{
+    auto&& [logWDL, w0L, w1L, o0L, o1L] = std::get<0>(weight_info);
+    auto&& [logWDCb, w0Cb, w1Cb, o0Cb, o1Cb] = std::get<1>(weight_info);
+    auto&& [logWDCr, w0Cr, w1Cr, o0Cr, o1Cr] = std::get<2>(weight_info);
+
+    std::vector<std::vector<int>> predPartL0L(partWidth, std::vector<int>(partHeight));
+    std::vector<std::vector<int>> predPartL1L(partWidth, std::vector<int>(partHeight));
+
+    std::vector<std::vector<int>> predPartL0Cb(partWidthC, std::vector<int>(partHeightC));
+    std::vector<std::vector<int>> predPartL1Cb(partWidthC, std::vector<int>(partHeightC));
+
+    std::vector<std::vector<int>> predPartL0Cr(partWidthC, std::vector<int>(partHeightC));
+    std::vector<std::vector<int>> predPartL1Cr(partWidthC, std::vector<int>(partHeightC));
+
+    //debug
+    if (mbPartIdx == 2) {
+        int lp = 0;
+        lp += 1;
+    }
+
+    if (predFlagL0) {
+        // 8.4.2.1
+        Slice* refPicL0 = Reference_picture_selection_process(refIdxL0, 0 /*listSuffixFlag*/);
+
+        Fractional_sample_interpolation_process(
+            mbPartIdx,
+            subMbPartIdx,
+            partWidth,
+            partHeight,
+            partWidthC,
+            partHeightC,
+            mvL0,
+            mvCL0,
+            refPicL0,
+            0 /* listSuffixFlag */,
+            /* output */
+            predPartL0L,
+            predPartL0Cb,
+            predPartL0Cr);
+    }
+
+    if (predFlagL1) {
+        // 8.4.2.1
+        Slice* refPicL1 = Reference_picture_selection_process(refIdxL1, 1 /*listSuffixFlag*/);
+
+        Fractional_sample_interpolation_process(
+            mbPartIdx,
+            subMbPartIdx,
+            partWidth,
+            partHeight,
+            partWidthC,
+            partHeightC,
+            mvL1,
+            mvCL1,
+            refPicL1,
+            1 /* listSuffixFlag */,
+            /* output */
+            predPartL1L,
+            predPartL1Cb,
+            predPartL1Cr);
+    }
+
+    // for debug
+    auto&& [predPartL, predPartCb, predPartCr] = Weighted_sample_prediction_process_all(
+        mbPartIdx,
+        subMbPartIdx,
+        predFlagL0,
+        predFlagL1,
+        predPartL0L,
+        predPartL1L,
+        predPartL0Cb,
+        predPartL1Cb,
+        predPartL0Cr,
+        predPartL1Cr,
+        logWDL, w0L, w1L, o0L, o1L,
+        logWDCb, w0Cb, w1Cb, o0Cb, o1Cb,
+        logWDCr, w0Cr, w1Cr, o0Cr, o1Cr);
+
+    return { predPartL, predPartCb, predPartCr };
+}
+
+// Done
+//
+// 8.4.2.1 Reference picture selection process
+Slice* MacroBlock::Reference_picture_selection_process(
+    int refIdxLX,
+    int listSuffixFlag)
+{
+    if (listSuffixFlag == 0)
+        return slice_->get_RefPicList0(refIdxLX);
+    else
+        return slice_->get_RefPicList1(refIdxLX);
+}
+
+// Done
+//
+// 8.4.2.2 Fractional sample interpolation process
+void MacroBlock::Fractional_sample_interpolation_process(
+    int mbPartIdx,
+    int subMbPartIdx,
+    int partWidth,
+    int partHeight,
+    int partWidthC,
+    int partHeightC,
+    std::array<int, 2> mvLX,
+    std::array<int, 2> mvCLX,
+    Slice* refPicLX,
+    int listSuffixFlag,
+    /* output */
+    std::vector<std::vector<int>>& predPartLXL,
+    std::vector<std::vector<int>>& predPartLXCb,
+    std::vector<std::vector<int>>& predPartLXCr)
+{
+
+    auto [xO, yO] = slice_->Inverse_macroblock_scanning_process(CurrMbAddr_);
+    auto [xM, yM] = Inverse_macroblock_partition_scanning_process(mbPartIdx);
+    auto [xS, yS] = Inverse_sub_macroblock_partition_scanning_process(mbPartIdx, subMbPartIdx);
+
+    int xAL = xO + xM + xS;
+    int yAL = yO + yM + yS;
+
+    for (int xL = 0; xL < partWidth; xL++) {
+        for (int yL = 0; yL < partHeight; yL++) {
+            int xIntL = xAL + (mvLX[0] >> 2) + xL;
+            int yIntL = yAL + (mvLX[1] >> 2) + yL;
+            int xFracL = mvLX[0] & 3; // 0b11
+            int yFracL = mvLX[1] & 3;
+            // 8.4.2.2.1
+            predPartLXL[xL][yL] = Luma_sample_interpolation_process(
+                xIntL, yIntL,
+                xFracL, yFracL,
+                refPicLX);
+        }
+    }
+
+    int SubWidthC = sps_->SubWidthC();
+    int SubHeightC = sps_->SubHeightC();
+
+    for (int xC = 0; xC < partWidthC; xC++) {
+        for (int yC = 0; yC < partHeightC; yC++) {
+            int xIntC, yIntC, xFracC, yFracC;
+            if (sps_->ChromaArrayType() == 1) {
+                xIntC = (xAL / SubWidthC) + (mvCLX[0] >> 3) + xC;
+                yIntC = (yAL / SubHeightC) + (mvCLX[1] >> 3) + yC;
+                xFracC = mvCLX[0] & 7;
+                yFracC = mvCLX[1] & 7;
+            } else if (sps_->ChromaArrayType() == 2) {
+                xIntC = (xAL / SubWidthC) + (mvCLX[0] >> 3) + xC;
+                yIntC = (yAL / SubHeightC) + (mvCLX[1] >> 2) + yC;
+                xFracC = mvCLX[0] & 7;
+                yFracC = (mvCLX[1] & 3) << 1;
+            } else {
+                xIntC = xAL + (mvLX[0] >> 2) + xC;
+                yIntC = yAL + (mvLX[1] >> 2) + yC;
+                xFracC = (mvCLX[0] & 3);
+                yFracC = (mvCLX[1] & 3);
+            }
+
+            if (sps_->ChromaArrayType() != 3) {
+                // 8.4.2.2.2
+                predPartLXCb[xC][yC] = Chroma_sample_interpolation_process(
+                    xIntC, yIntC,
+                    xFracC, yFracC,
+                    refPicLX,
+                    0 /* iCbCr */);
+
+                // 8.4.2.2.2
+                predPartLXCr[xC][yC] = Chroma_sample_interpolation_process(
+                    xIntC, yIntC,
+                    xFracC, yFracC,
+                    refPicLX,
+                    1 /* iCbCr */);
+            } else {
+                // TODO
+                assert(false);
+            }
+        }
+    }
+}
+
+// Done
+//
+// 8.4.2.2.1 Luma sample interpolation process
+int MacroBlock::Luma_sample_interpolation_process(
+    int xIntL, int yIntL,
+    int xFracL, int yFracL,
+    Slice* refPicLX)
+{
+
+    int refPicHeightEffectiveL = sps_->PicHeightInSamplesL();
+    int PicWidthInSamplesL = sps_->PicWidthInSamplesL();
+
+// borrow from h264_video_decoder_demo
+#define getLumaSample(x, y) refPicLX->get_constructed_luma( \
+    Clip3(0, PicWidthInSamplesL - 1, xIntL + x),            \
+    Clip3(0, refPicHeightEffectiveL - 1, yIntL + y))
+
+    int A = getLumaSample(0, -2);
+    int B = getLumaSample(1, -2);
+    int C = getLumaSample(0, -1);
+    int D = getLumaSample(1, -1);
+    int E = getLumaSample(-2, 0);
+    int F = getLumaSample(-1, 0);
+    int G = getLumaSample(0, 0);
+    int H = getLumaSample(1, 0);
+    int I = getLumaSample(2, 0);
+    int J = getLumaSample(3, 0);
+    int K = getLumaSample(-2, 1);
+    int L = getLumaSample(-1, 1);
+    int M = getLumaSample(0, 1);
+    int N = getLumaSample(1, 1);
+    int P = getLumaSample(2, 1);
+    int Q = getLumaSample(3, 1);
+    int R = getLumaSample(0, 2);
+    int S = getLumaSample(1, 2);
+    int T = getLumaSample(0, 3);
+    int U = getLumaSample(1, 3);
+
+    int X11 = getLumaSample(-2, -2);
+    int X12 = getLumaSample(-1, -2);
+    int X13 = getLumaSample(2, -2);
+    int X14 = getLumaSample(3, -2);
+
+    int X21 = getLumaSample(-2, -1);
+    int X22 = getLumaSample(-1, -1);
+    int X23 = getLumaSample(2, -1);
+    int X24 = getLumaSample(3, -1);
+
+    int X31 = getLumaSample(-2, 2);
+    int X32 = getLumaSample(-1, 2);
+    int X33 = getLumaSample(2, 2);
+    int X34 = getLumaSample(3, 2);
+
+    int X41 = getLumaSample(-2, 3);
+    int X42 = getLumaSample(-1, 3);
+    int X43 = getLumaSample(2, 3);
+    int X44 = getLumaSample(3, 3);
+
+#undef getLumaSample
+
+#define a_6_tap_filter(v1, v2, v3, v4, v5, v6) \
+    ((v1)-5 * (v2) + 20 * (v3) + 20 * (v4)-5 * (v5) + (v6))
+
+    int b1 = (E - 5 * F + 20 * G + 20 * H - 5 * I + J);
+    int h1 = (A - 5 * C + 20 * G + 20 * M - 5 * R + T);
+
+    int s1 = a_6_tap_filter(K, L, M, N, P, Q);
+    int m1 = a_6_tap_filter(B, D, H, N, S, U);
+
+    int b = Clip1Y((b1 + 16) >> 5);
+    int h = Clip1Y((h1 + 16) >> 5);
+    int s = Clip1Y((s1 + 16) >> 5);
+    int m = Clip1Y((m1 + 16) >> 5);
+
+    int aa = a_6_tap_filter(X11, X12, A, B, X13, X14);
+    int bb = a_6_tap_filter(X21, X22, C, D, X23, X24);
+    int gg = a_6_tap_filter(X31, X32, R, S, X33, X34);
+    int hh = a_6_tap_filter(X41, X42, T, U, X43, X44);
+
+    int cc = a_6_tap_filter(X11, X21, E, K, X31, X41);
+    int dd = a_6_tap_filter(X12, X22, F, L, X32, X42);
+    int ee = a_6_tap_filter(X13, X23, I, P, X33, X43);
+    int ff = a_6_tap_filter(X14, X24, J, Q, X34, X44);
+
+    // TODO: what if use different calculation method of j1?
+    // the following j1 and j2 should be same, since both are 2D tap filter for the whole block
+    int j1 = a_6_tap_filter(cc, dd, h1, m1, ee, ff);
+    // int j2 = a_6_tap_filter(aa, bb, b1, s1, gg, hh);
+    // assert(j1 == j2);
+
+    int j = Clip1Y((j1 + 512) >> 10);
+
+#undef a_6_tap_filter
+
+    int a = (G + b + 1) >> 1;
+    int c = (H + b + 1) >> 1;
+    int d = (G + h + 1) >> 1;
+    int n = (M + h + 1) >> 1;
+    int f = (b + j + 1) >> 1;
+    int i = (h + j + 1) >> 1;
+    int k = (j + m + 1) >> 1;
+    int q = (j + s + 1) >> 1;
+
+    int e = (b + h + 1) >> 1;
+    int g = (b + m + 1) >> 1;
+    int p = (h + s + 1) >> 1;
+    int r = (m + s + 1) >> 1;
+
+    int tmp[4][4] = {
+        { G, d, h, n },
+        { a, e, i, p },
+        { b, f, j, q },
+        { c, g, k, r },
+    };
+
+    return tmp[xFracL][yFracL];
+}
+
+// Done
+//
+// 8.4.2.2.2 Chroma sample interpolation process
+int MacroBlock::Chroma_sample_interpolation_process(
+    int xIntC, int yIntC,
+    int xFracC, int yFracC,
+    Slice* refPicLX,
+    int iCbCr)
+{
+    int refPicHeightEffectiveC = sps_->PicHeightInSamplesC();
+    int PicWidthInSamplesC = sps_->PicWidthInSamplesC();
+
+    int xAC = Clip3(0, PicWidthInSamplesC - 1, xIntC);
+    int xBC = Clip3(0, PicWidthInSamplesC - 1, xIntC + 1);
+    int xCC = Clip3(0, PicWidthInSamplesC - 1, xIntC);
+    int xDC = Clip3(0, PicWidthInSamplesC - 1, xIntC + 1);
+
+    int yAC = Clip3(0, refPicHeightEffectiveC - 1, yIntC);
+    int yBC = Clip3(0, refPicHeightEffectiveC - 1, yIntC);
+    int yCC = Clip3(0, refPicHeightEffectiveC - 1, yIntC + 1);
+    int yDC = Clip3(0, refPicHeightEffectiveC - 1, yIntC + 1);
+
+    int A = refPicLX->get_constructed_chroma(iCbCr, xAC, yAC);
+    int B = refPicLX->get_constructed_chroma(iCbCr, xBC, yBC);
+    int C = refPicLX->get_constructed_chroma(iCbCr, xCC, yCC);
+    int D = refPicLX->get_constructed_chroma(iCbCr, xDC, yDC);
+
+    return ((8 - xFracC) * (8 - yFracC) * A
+               + xFracC * (8 - yFracC) * B
+               + (8 - xFracC) * yFracC * C
+               + xFracC * yFracC * D + 32)
+        >> 6;
+}
+
+// Done
+//
+// 8.4.2.3 Weighted sample prediction process
+//
+std::tuple<
+    std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>,
+    std::vector<std::vector<int>>>
+MacroBlock::Weighted_sample_prediction_process_all(
+    int mbPartIdx,
+    int subMbPartIdx,
+    int predFlagL0,
+    int predFlagL1,
+
+    const std::vector<std::vector<int>>& predPartL0L,
+    const std::vector<std::vector<int>>& predPartL1L,
+    const std::vector<std::vector<int>>& predPartL0Cb,
+    const std::vector<std::vector<int>>& predPartL1Cb,
+    const std::vector<std::vector<int>>& predPartL0Cr,
+    const std::vector<std::vector<int>>& predPartL1Cr,
+
+    int logWDL, int w0L, int w1L, int o0L, int o1L,
+    int logWDCb, int w0Cb, int w1Cb, int o0Cb, int o1Cb,
+    int logWDCr, int w0Cr, int w1Cr, int o0Cr, int o1Cr)
+{
+    int partWidth, partHeight;
+    int partWidthC, partHeightC;
+
+    // TODO is this correct?
+    partWidth = predPartL0L.size();
+    partHeight = predPartL0L[0].size();
+
+    partWidthC = predPartL0Cb.size();
+    partHeightC = predPartL0Cb[0].size();
+
+    std::vector<std::vector<int>> predPartL;
+    std::vector<std::vector<int>> predPartCb;
+    std::vector<std::vector<int>> predPartCr;
+
+    auto Default_weight_pred = [&predPartL, &predPartCb, &predPartCr,
+
+                                   predFlagL0, predFlagL1,
+
+                                   &predPartL0L, &predPartL1L,
+                                   logWDL, w0L, w1L, o0L, o1L,
+
+                                   &predPartL0Cb, &predPartL1Cb,
+                                   logWDCb, w0Cb, w1Cb, o0Cb, o1Cb,
+
+                                   &predPartL0Cr, &predPartL1Cr,
+                                   logWDCr, w0Cr, w1Cr, o0Cr, o1Cr,
+
+                                   this]() {
+        predPartL = Default_weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0L,
+            predPartL1L,
+            logWDL, w0L, w1L, o0L, o1L);
+
+        predPartCb = Default_weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0Cb,
+            predPartL1Cb,
+            logWDCb, w0Cb, w1Cb, o0Cb, o1Cb);
+
+        predPartCr = Default_weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0Cr,
+            predPartL1Cr,
+            logWDCr, w0Cr, w1Cr, o0Cr, o1Cr);
+    };
+
+    auto Weighted_pred = [&predPartL, &predPartCb, &predPartCr,
+
+                             predFlagL0, predFlagL1,
+
+                             &predPartL0L, &predPartL1L,
+                             logWDL, w0L, w1L, o0L, o1L,
+
+                             &predPartL0Cb, &predPartL1Cb,
+                             logWDCb, w0Cb, w1Cb, o0Cb, o1Cb,
+
+                             &predPartL0Cr, &predPartL1Cr,
+                             logWDCr, w0Cr, w1Cr, o0Cr, o1Cr,
+
+                             this]() {
+        predPartL = Weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0L,
+            predPartL1L,
+            logWDL, w0L, w1L, o0L, o1L,
+            true /* is_luma */);
+
+        predPartCb = Weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0Cb,
+            predPartL1Cb,
+            logWDCb, w0Cb, w1Cb, o0Cb, o1Cb,
+            false /* is_luma */);
+
+        predPartCr = Weighted_sample_prediction_process(
+            predFlagL0,
+            predFlagL1,
+            predPartL0Cr,
+            predPartL1Cr,
+            logWDCr, w0Cr, w1Cr, o0Cr, o1Cr,
+            false /* is_luma */);
+    };
+
+    if (slice_->is_P_or_SP()) {
+        assert(predFlagL0);
+
+        if (predFlagL0) {
+            if (!pps_->weighted_pred_flag()) {
+                // clause 8.4.2.3.1
+                Default_weight_pred();
+            } else {
+                // clause 8.4.2.3.2
+                Weighted_pred();
+            }
+        }
+    } else {
+        assert(predFlagL0 || predFlagL1);
+        assert(slice_->is_B_slice());
+
+        if (pps_->weighted_bipred_idc() == 0) {
+            // clause 8.4.2.3.1
+
+            Default_weight_pred();
+
+        } else if (pps_->weighted_bipred_idc() == 1) {
+            // clause 8.4.2.3.2
+            Weighted_pred();
+
+        } else {
+            assert(pps_->weighted_bipred_idc() == 2);
+
+            if (predFlagL0 && predFlagL1) {
+                // clause 8.4.2.3.2
+                Weighted_pred();
+            } else {
+                // clause 8.4.2.3.1
+                Default_weight_pred();
+            }
+        }
+    }
+    return { predPartL, predPartCb, predPartCr };
+}
+
+// Done
+//
+// 8.4.2.3.1 Default weighted sample prediction process
+std::vector<std::vector<int>>
+MacroBlock::Default_weighted_sample_prediction_process(
+    int predFlagL0,
+    int predFlagL1,
+    const std::vector<std::vector<int>>& predPartL0C,
+    const std::vector<std::vector<int>>& predPartL1C,
+    int logWDC, int w0C, int w1C, int o0C, int o1C)
+{
+    int partWidth = predPartL0C.size();
+    int partHeight = predPartL0C[0].size();
+
+    std::vector<std::vector<int>> predPartC(partWidth, std::vector<int>(partHeight, 0));
+
+    if (predFlagL0 && !predFlagL1) {
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                predPartC[x][y] = predPartL0C[x][y];
+            }
+        }
+    } else if (!predFlagL0 && predFlagL1) {
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                predPartC[x][y] = predPartL1C[x][y];
+            }
+        }
+    } else {
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                predPartC[x][y] = (predPartL0C[x][y] + predPartL1C[x][y] + 1) >> 1;
+            }
+        }
+    }
+    return std::move(predPartC);
+}
+
+// Done
+//
+// 8.4.2.3.2 Weighted sample prediction process
+std::vector<std::vector<int>>
+MacroBlock::Weighted_sample_prediction_process(
+    int predFlagL0,
+    int predFlagL1,
+    const std::vector<std::vector<int>>& predPartL0C,
+    const std::vector<std::vector<int>>& predPartL1C,
+    int logWDC, int w0C, int w1C, int o0C, int o1C,
+    bool is_luma)
+{
+    int partWidth = predPartL0C.size();
+    int partHeight = predPartL0C[0].size();
+
+    std::vector<std::vector<int>> predPartC(partWidth, std::vector<int>(partHeight, 0));
+
+    std::function<int(int)> Clip1;
+    if (is_luma)
+        Clip1 = std::bind(&MacroBlock::Clip1Y, this, std::placeholders::_1);
+    else
+        Clip1 = std::bind(&MacroBlock::Clip1C, this, std::placeholders::_1);
+
+    if (predFlagL0 && !predFlagL1) {
+        if (logWDC >= 1) {
+
+            for (int x = 0; x < partWidth; x++) {
+                for (int y = 0; y < partHeight; y++) {
+                    predPartC[x][y] = Clip1(((predPartL0C[x][y] * w0C + (1 << (logWDC - 1))) >> logWDC) + o0C);
+                }
+            }
+
+        } else {
+            for (int x = 0; x < partWidth; x++) {
+                for (int y = 0; y < partHeight; y++) {
+                    predPartC[x][y] = Clip1(predPartL0C[x][y] * w0C + o0C);
+                }
+            }
+        }
+    } else if (!predFlagL0 && predFlagL1) {
+
+        if (logWDC >= 1) {
+
+            for (int x = 0; x < partWidth; x++) {
+                for (int y = 0; y < partHeight; y++) {
+
+                    predPartC[x][y] = Clip1(((predPartL1C[x][y] * w1C + (1 << (logWDC - 1))) >> logWDC) + o1C);
+                }
+            }
+
+        } else {
+
+            for (int x = 0; x < partWidth; x++) {
+                for (int y = 0; y < partHeight; y++) {
+
+                    predPartC[x][y] = Clip1(predPartL1C[x][y] * w1C + o1C);
+                }
+            }
+        }
+
+    } else {
+
+        for (int x = 0; x < partWidth; x++) {
+            for (int y = 0; y < partHeight; y++) {
+                predPartC[x][y] = Clip1(((predPartL0C[x][y] * w0C
+                                             + predPartL1C[x][y] * w1C
+                                             + (1 << logWDC))
+                                            >> (logWDC + 1))
+                    + ((o0C + o1C + 1) >> 1));
+            }
+        }
+    }
+
+    return std::move(predPartC);
+}
+
+Slice* MacroBlock::get_RefPicList0_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL0_[mbPartIdx]) {
+        auto refidx0 = get_RefIdxL0(mbPartIdx);
+        return slice_->get_RefPicList0(refidx0);
+    } else
+        return nullptr;
+}
+
+Slice* MacroBlock::get_RefPicList1_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL1_[mbPartIdx]) {
+        auto refidx1 = get_RefIdxL1(mbPartIdx);
+        return slice_->get_RefPicList1(refidx1);
+    } else
+        return nullptr;
+}
+
+int MacroBlock::get_PredFlagL0_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    return get_PredFlagL0(mbPartIdx);
+}
+
+int MacroBlock::get_PredFlagL1_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    return get_PredFlagL1(mbPartIdx);
+}
+
+int MacroBlock::get_MvL0_x_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL0_[mbPartIdx]) {
+        return get_MvL0(mbPartIdx, subMbPartIdx)[0];
+    } else
+        return INT32_MIN; // ? TODO
+}
+
+int MacroBlock::get_MvL0_y_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL0_[mbPartIdx]) {
+        return get_MvL0(mbPartIdx, subMbPartIdx)[1];
+    } else
+        return INT32_MIN; // ? TODO
+}
+
+int MacroBlock::get_MvL1_x_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL1_[mbPartIdx]) {
+        return get_MvL1(mbPartIdx, subMbPartIdx)[0];
+    } else
+        return INT32_MIN; // ? TODO
+}
+
+int MacroBlock::get_MvL1_y_by_part(int mbPartIdx, int subMbPartIdx)
+{
+    if (PredFlagL1_[mbPartIdx]) {
+        return get_MvL1(mbPartIdx, subMbPartIdx)[1];
+    } else
+        return INT32_MIN; // ? TODO
 }

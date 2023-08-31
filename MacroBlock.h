@@ -204,6 +204,14 @@ struct SubMbTypeDesc {
 #define Intra_Chroma_Vertical 2
 #define Intra_Chroma_Plane 3
 
+#define One_To_One 0
+#define Frm_To_Fld 1
+#define Fld_To_Frm 2
+
+#define FLD 0
+#define AFRM 1
+#define FRM 2
+
 class MbTypeProxy {
 public:
     MbTypeProxy() = default;
@@ -285,6 +293,8 @@ private:
 class MacroBlock {
 
 public:
+    friend class Slice;
+
     MacroBlock() = default;
 
     MacroBlock(Slice* slice, std::shared_ptr<NalUnit::RbspData> rbsp_data, int CurrMbAddr);
@@ -555,10 +565,312 @@ private:
 
     int QPY_internal_ = INT32_MIN;
 
-    int MvL0_[4][4] = { 0 };
-    int MvL1_[4][4] = { 0 };
+    int MvL0_[4][4][2] = { 0 };
+    int MvL1_[4][4][2] = { 0 };
     int RefIdxL0_[4] = { 0 };
     int RefIdxL1_[4] = { 0 };
     int PredFlagL0_[4] = { 0 };
     int PredFlagL1_[4] = { 0 };
+
+public:
+    int get_predFlag(int listSuffixFlag, int mbPartIdx)
+    {
+        if (listSuffixFlag == 0)
+            return get_PredFlagL0(mbPartIdx);
+        else if (listSuffixFlag == 1)
+            return get_PredFlagL1(mbPartIdx);
+
+        assert(false);
+        return INT32_MIN;
+    }
+    int get_PredFlagL0(int mbPartIdx)
+    {
+        return PredFlagL0_[mbPartIdx];
+    }
+    int get_PredFlagL1(int mbPartIdx)
+    {
+        return PredFlagL1_[mbPartIdx];
+    }
+
+    int get_RefIdx(int listSuffixFlag, int mbPartIdx)
+    {
+        if (listSuffixFlag == 0)
+            return get_RefIdxL0(mbPartIdx);
+        else if (listSuffixFlag == 1)
+            return get_RefIdxL1(mbPartIdx);
+
+        assert(false);
+        return INT32_MIN;
+    }
+
+    int get_RefIdxL0(int mbPartIdx)
+    {
+        return RefIdxL0_[mbPartIdx];
+    }
+    int get_RefIdxL1(int mbPartIdx)
+    {
+        return RefIdxL1_[mbPartIdx];
+    }
+
+    using array2 = int (&)[2];
+
+    array2 get_Mv(int listSuffixFlag, int mbPartIdx, int subMbPartIdx)
+    {
+        static int tmp[2] = { INT32_MIN, INT32_MIN };
+        if (listSuffixFlag == 0)
+            return get_MvL0(mbPartIdx, subMbPartIdx);
+        else if (listSuffixFlag == 1)
+            return get_MvL1(mbPartIdx, subMbPartIdx);
+
+        assert(false);
+        return tmp;
+    }
+
+    array2 get_MvL0(int mbPartIdx, int subMbPartIdx)
+    {
+        return MvL0_[mbPartIdx][subMbPartIdx];
+    }
+    array2 get_MvL1(int mbPartIdx, int subMbPartIdx)
+    {
+        return MvL1_[mbPartIdx][subMbPartIdx];
+    }
+
+    int Median(int x, int y, int z)
+    {
+        return x + y + z
+            - std::min(x, std::min(y, z))
+            - std::max(x, std::max(y, z));
+    }
+
+    int DiffPicOrderCnt(Slice* a, Slice* b);
+
+    Slice* get_RefPicList0_by_part(int mbPartIdx, int subMbPartIdx);
+    Slice* get_RefPicList1_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_PredFlagL0_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_PredFlagL1_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_MvL0_x_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_MvL0_y_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_MvL1_x_by_part(int mbPartIdx, int subMbPartIdx);
+    int get_MvL1_y_by_part(int mbPartIdx, int subMbPartIdx);
+
+public:
+    void Inter_prediction_process();
+
+    std::tuple<std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>,
+        std::array<int, 2>,
+        std::array<int, 2>,
+        std::array<int, 2>,
+        std::array<int, 2>,
+        int, int, int, int>
+    derive_predict(
+        int mbPartIdx,
+        int subMbPartIdx,
+        bool has_sub_idx,
+        int partWidth,
+        int partHeight,
+        int partWidthC,
+        int partHeightC,
+        /* output */
+        int& MvCnt);
+
+    std::tuple<
+        std::array<int, 2>, std::array<int, 2>,
+        std::array<int, 2>, std::array<int, 2>,
+        int, int,
+        int, int,
+        int>
+    Derivation_process_for_motion_vector_components_and_reference_indices(
+        int mbPartIdx,
+        int subMbPartIdx,
+        bool has_sub_idx);
+
+    std::tuple<std::array<int, 2>, int>
+    Derivation_process_for_luma_motion_vectors_for_skipped_macroblocks_in_P_and_SP_slices();
+
+    std::tuple<int, int,
+        std::array<int, 2>, std::array<int, 2>,
+        int, int, int>
+    Derivation_process_for_luma_motion_vectors_for_B_Skip_B_Direct_16x16_and_B_Direct_8x8(
+        int mbPartIdx,
+        int subMbPartIdx);
+
+    std::tuple<Slice*, int, std::array<int, 2>, int, int, Slice*>
+    Derivation_process_for_the_co_located_4x4_sub_macroblock_partitions(
+        int mbPartIdx,
+        int subMbPartIdx);
+
+    std::tuple<
+        int, int,
+        std::array<int, 2>, std::array<int, 2>,
+        int, int, int>
+    Derivation_process_for_spatial_direct_luma_motion_vector_and_reference_index_prediction_mode(
+        int mbPartIdx,
+        int subMbPartIdx);
+
+    std::tuple<
+        std::array<int, 2>, std::array<int, 2>,
+        int, int,
+        int, int>
+    Derivation_process_for_temporal_direct_luma_motion_vector_and_reference_index_prediction_mode(
+        int mbPartIdx,
+        int subMbPartIdx);
+
+    std::tuple<
+        std::array<int, 2>,
+        std::array<int, 2>>
+    Derivation_process_for_luma_motion_vector_prediction(
+        int mbPartIdx,
+        int subMbPartIdx,
+        int refIdxL0,
+        int refIdxL1,
+        SubMbType currSubMbType);
+
+    std::array<int, 2>
+    Derivation_process_for_luma_motion_vector_prediction_single(
+        int mbPartIdx,
+        int subMbPartIdx,
+        int refIdxLX,
+        SubMbType currSubMbType,
+        int listSuffixFlag);
+
+    std::array<int, 2>
+    Derivation_process_for_median_luma_motion_vector_prediction(
+        int mbAddrA,
+        int mbPartIdxA,
+        int subMbPartIdxA,
+        std::array<int, 2> mvLXA,
+        int refIdxLXA,
+
+        int mbAddrB,
+        int mbPartIdxB,
+        int subMbPartIdxB,
+        std::array<int, 2> mvLXB,
+        int refIdxLXB,
+
+        int mbAddrC,
+        int mbPartIdxC,
+        int subMbPartIdxC,
+        std::array<int, 2> mvLXC,
+        int refIdxLXC,
+
+        int refIdxLX);
+
+    std::tuple<
+        std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>,
+        std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>,
+        std::tuple<int, int, int, std::tuple<std::array<int, 2>, int>>>
+    Derivation_process_for_motion_data_of_neighbouring_partitions(
+        int mbPartIdx,
+        int subMbPartIdx,
+        SubMbType currSubMbType,
+        int listSuffixFlag);
+
+    std::array<int, 2>
+    Derivation_process_for_chroma_motion_vectors(
+        std::array<int, 2> mvLX,
+        int refIdxLX,
+        int listSuffixFlag /* currently unused */);
+
+    std::tuple<
+        std::tuple<int, int, int, int, int>,
+        std::tuple<int, int, int, int, int>,
+        std::tuple<int, int, int, int, int>>
+    Derivation_process_for_prediction_weights(
+        int refIdxL0, int refIdxL1,
+        int predFlagL0, int predFlagL1);
+
+    std::tuple<
+        std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>>
+    Decoding_process_for_Inter_prediction_samples(
+        int mbPartIdx,
+        int subMbPartIdx,
+        int partWidth,
+        int partHeight,
+        int partWidthC,
+        int partHeightC,
+        std::array<int, 2> mvL0,
+        std::array<int, 2> mvL1,
+        std::array<int, 2> mvCL0,
+        std::array<int, 2> mvCL1,
+        int refIdxL0,
+        int refIdxL1,
+        int predFlagL0,
+        int predFlagL1,
+        std::tuple<
+            std::tuple<int, int, int, int, int>,
+            std::tuple<int, int, int, int, int>,
+            std::tuple<int, int, int, int, int>>
+            weight_info);
+
+    Slice* Reference_picture_selection_process(
+        int refIdxLX,
+        int listSuffixFlag);
+
+    void Fractional_sample_interpolation_process(
+        int mbPartIdx,
+        int subMbPartIdx,
+        int partWidth,
+        int partHeight,
+        int partWidthC,
+        int partHeightC,
+        std::array<int, 2> mvLX,
+        std::array<int, 2> mvCLX,
+        Slice* refPicLX,
+        int listSuffixFlag,
+
+        /* output */
+        std::vector<std::vector<int>>& predPartLXL,
+        std::vector<std::vector<int>>& predPartLXCb,
+        std::vector<std::vector<int>>& predPartLXCr);
+
+    int Luma_sample_interpolation_process(
+        int xIntL, int yIntL,
+        int xFracL, int yFracL,
+        Slice* refPicLX);
+
+    int Chroma_sample_interpolation_process(
+        int xIntC, int yIntC,
+        int xFracC, int yFracC,
+        Slice* refPicLX,
+        int iCbCr);
+
+    std::tuple<
+        std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>,
+        std::vector<std::vector<int>>>
+    Weighted_sample_prediction_process_all(
+        int mbPartIdx,
+        int subMbPartIdx,
+        int predFlagL0,
+        int predFlagL1,
+        const std::vector<std::vector<int>>& predPartL0L,
+        const std::vector<std::vector<int>>& predPartL1L,
+        const std::vector<std::vector<int>>& predPartL0Cb,
+        const std::vector<std::vector<int>>& predPartL1Cb,
+        const std::vector<std::vector<int>>& predPartL0Cr,
+        const std::vector<std::vector<int>>& predPartL1Cr,
+        int logWDL, int w0L, int w1L, int o0L, int o1L,
+        int logWDCb, int w0Cb, int w1Cb, int o0Cb, int o1Cb,
+        int logWDCr, int w0Cr, int w1Cr, int o0Cr, int o1Cr);
+
+    std::vector<std::vector<int>>
+    Default_weighted_sample_prediction_process(
+        int predFlagL0,
+        int predFlagL1,
+        const std::vector<std::vector<int>>& predPartL0C,
+        const std::vector<std::vector<int>>& predPartL1C,
+        int logWDC, int w0C, int w1C, int o0C, int o1C);
+
+    std::vector<std::vector<int>>
+    Weighted_sample_prediction_process(
+        int predFlagL0,
+        int predFlagL1,
+        const std::vector<std::vector<int>>& predPartL0C,
+        const std::vector<std::vector<int>>& predPartL1C,
+        int logWDC, int w0C, int w1C, int o0C, int o1C,
+        bool is_luma);
 };
