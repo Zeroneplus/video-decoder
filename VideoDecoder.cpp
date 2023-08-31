@@ -56,6 +56,9 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
     // parse slice data
     slice->parse_slice_data(this);
 
+    // debug log
+    // printf("\n");
+
     // deblocking
     slice->Deblocking_filter_process();
 
@@ -75,6 +78,8 @@ int VideoDecoder::add_slice(std::shared_ptr<NalUnit::RbspData> rbsp)
 
     // output yuv data for test
     slice->write_yuv("");
+
+    // TODO free non-ref slice
 
     return ret;
 }
@@ -207,6 +212,13 @@ VideoDecoder::initialisation_process_for_reference_picture_lists_for_B_slices_in
 
 void VideoDecoder::reference_picture_lists_construction(std::shared_ptr<Slice> current_slice)
 {
+    // debug
+    // if (current_slice->PicOrderCnt() == 182) {
+
+    //     int l;
+    //     l -= 1;
+    // }
+
     if (current_slice->is_P_slice() || current_slice->is_SP_slice()) {
 
         // Initialisation process for the reference picture list for P and SP slices in frames
