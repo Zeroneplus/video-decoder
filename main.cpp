@@ -11,7 +11,7 @@
 
 int main(int argn, char** argv)
 {
-    spdlog::set_level(spdlog::level::warn);
+    spdlog::set_level(spdlog::level::err);
 
     if (argn < 2) {
         spdlog::error("Too less args");
