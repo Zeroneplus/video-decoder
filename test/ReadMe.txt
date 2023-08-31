@@ -12,8 +12,8 @@ x264 --no-8x8dct --no-cabac --fps 25 --input-res 352x288 --output bus_cif_352x28
 
 x264 --no-8x8dct --no-cabac --fps 25 --input-res 1920x1080 --output HeavyHand_1920x1080.h264 HeavyHand_1080p.yuv
 
-ffplay -f rawvideo -video_size 176x144  -pixel_format yuv420p -i 0_I.yuv420p
+ffplay -hide_banner -f rawvideo -video_size 176x144  -pixel_format yuv420p -i 0000_I.yuv420p
 
-ffplay -f rawvideo -video_size 352x288  -pixel_format yuv420p -i 0_I.yuv420p
+ffplay -hide_banner -f rawvideo -video_size 352x288  -pixel_format yuv420p -i 0000_I.yuv420p
 
-ffplay -f rawvideo -video_size 1920x1088  -pixel_format yuv420p -i 0_I.yuv420p
+ffplay -hide_banner -f rawvideo -video_size 1920x1088  -pixel_format yuv420p -i 0000_I.yuv420p
